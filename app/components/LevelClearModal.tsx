@@ -1,0 +1,235 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import { LevelConfig } from "../utils/types";
+
+interface LevelClearModalProps {
+  level: LevelConfig;
+  starsEarned: number;
+  timeTaken: number;
+  hasNextLevel: boolean;
+  onNextLevel: () => void;
+  onReplay: () => void;
+  onOpenLevelSelector: () => void;
+}
+
+export const LevelClearModal: React.FC<LevelClearModalProps> = ({
+  level,
+  starsEarned,
+  timeTaken,
+  hasNextLevel,
+  onNextLevel,
+  onReplay,
+  onOpenLevelSelector,
+}) => {
+  const [countdown, setCountdown] = useState(10);
+  const hasTriggeredRef = useRef(false);
+
+  const handleNext = () => {
+    if (hasTriggeredRef.current) return;
+    hasTriggeredRef.current = true;
+    onNextLevel();
+  };
+
+  const handleReplay = () => {
+    hasTriggeredRef.current = true;
+    onReplay();
+  };
+
+  const handleOpenMap = () => {
+    hasTriggeredRef.current = true;
+    onOpenLevelSelector();
+  };
+
+  // AUTOMATIC NEXT LEVEL COUNTDOWN (Clean effect lifecycle, outside of render)
+  useEffect(() => {
+    if (!hasNextLevel) return;
+
+    if (countdown === 0) {
+      handleNext();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [countdown, hasNextLevel]);
+
+  return (
+    <div
+      className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-3 sm:p-4 text-center z-40 select-none animate-in fade-in duration-200"
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <div className="w-full max-w-sm bg-[#0e1910] border-2 border-emerald-400/50 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col items-center relative overflow-hidden">
+        {/* Glow ambient background */}
+        <div className="absolute -top-20 -left-20 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Level Cleared Badge */}
+        <div className="text-3xl sm:text-4xl mb-1 animate-bounce">🏆</div>
+        <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-emerald-400 mb-0.5">
+          Level {level.level} Completed!
+        </div>
+        <h2 className="text-xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-amber-300 tracking-tight mb-2">
+          {level.title}
+        </h2>
+
+        {/* STARS RATING DISPLAY */}
+        <div className="flex items-center justify-center gap-2 my-2 sm:my-3">
+          {[1, 2, 3].map((starIdx) => {
+            const hasStar = starIdx <= starsEarned;
+            return (
+              <div
+                key={starIdx}
+                className={`text-2xl sm:text-4xl transition-all duration-300 transform ${
+                  hasStar
+                    ? "scale-110 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)] animate-pulse"
+                    : "opacity-25 grayscale scale-95"
+                }`}
+              >
+                ⭐
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Star Rating Comment */}
+        <div className="text-xs font-bold text-amber-300 mb-3">
+          {starsEarned === 3
+            ? "⭐⭐⭐ PERFECT! Blazing Fast!"
+            : starsEarned === 2
+            ? "⭐⭐ GREAT SPEED! Just missed 3 stars!"
+            : "⭐ LEVEL CLEARED! Good job!"}
+        </div>
+
+        {/* TIME & STATS CARD */}
+        <div className="w-full bg-white/5 rounded-2xl p-2.5 sm:p-3 border border-white/10 mb-3 flex items-center justify-around text-xs">
+          <div>
+            <div className="text-white/50 text-[10px] uppercase font-bold">Time Taken</div>
+            <div className="text-sm sm:text-base font-black text-amber-300 tabular-nums">
+              {timeTaken.toFixed(1)}s
+            </div>
+          </div>
+          <div className="w-px h-8 bg-white/10" />
+          <div>
+            <div className="text-white/50 text-[10px] uppercase font-bold">Time Limit</div>
+            <div className="text-sm sm:text-base font-black text-white/80 tabular-nums">
+              {level.timeLimit}s
+            </div>
+          </div>
+          <div className="w-px h-8 bg-white/10" />
+          <div>
+            <div className="text-white/50 text-[10px] uppercase font-bold">Apples</div>
+            <div className="text-sm sm:text-base font-black text-emerald-400 tabular-nums">
+              {level.targetApples} 🍏
+            </div>
+          </div>
+        </div>
+
+        {/* TIER PROMOTION ALERT */}
+        {(level.level === 5 || level.level === 10 || level.level === 15) && (
+          <div className="w-full bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-400/40 rounded-2xl p-2 sm:p-2.5 mb-3 text-center">
+            <div className="text-[11px] font-black text-amber-300 uppercase tracking-wider flex items-center justify-center gap-1">
+              <span>🔓</span>
+              <span>
+                {level.level === 5
+                  ? "NEW BOARD & SNAKE SKIN UNLOCKED! 🏜️"
+                  : level.level === 10
+                  ? "NEW BOARD & SNAKE SKIN UNLOCKED! 🌋"
+                  : "NEW BOARD & SNAKE SKIN UNLOCKED! ⚡"}
+              </span>
+            </div>
+            <div className="text-[10px] text-white/90 mt-0.5 font-semibold">
+              {level.level === 5
+                ? "Level 6: Golden Desert Board & Sand Cobra Skin!"
+                : level.level === 10
+                ? "Level 11: Volcanic Basalt Board & Lava Dragon Skin!"
+                : "Level 16: Cyber Void Board & Neon Cyan Python Skin!"}
+            </div>
+          </div>
+        )}
+
+        {/* ACTION BUTTONS */}
+        <div className="w-full flex flex-col gap-2">
+          {hasNextLevel ? (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                handleNext();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNext();
+              }}
+              className="w-full py-3 sm:py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-sm sm:text-base tracking-wide shadow-xl shadow-emerald-500/30 touch-btn cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+            >
+              <span>NEXT LEVEL {level.level + 1}</span>
+              <span className="text-xs bg-black/25 px-2 py-0.5 rounded-full font-mono">
+                {countdown}s
+              </span>
+              <span>➔</span>
+            </button>
+          ) : (
+            <div className="text-xs font-bold text-amber-300 py-2">
+              🎉 Congratulations! You have conquered all 10,000 levels!
+            </div>
+          )}
+
+          {/* AUTO-ADVANCE STATUS BAR WITH PROGRESS */}
+          {hasNextLevel && (
+            <div className="w-full flex flex-col items-center gap-1 my-0.5">
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 transition-all duration-1000 ease-linear rounded-full"
+                  style={{ width: `${(countdown / 10) * 100}%` }}
+                />
+              </div>
+              <div className="text-[11px] text-white/70 font-semibold flex items-center gap-1">
+                <span>⏱️ Auto-starting next level in</span>
+                <span className="text-amber-300 font-bold font-mono">{countdown}s</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                handleReplay();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReplay();
+              }}
+              className="flex-1 py-2 sm:py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white/90 text-xs font-bold border border-white/10 touch-btn cursor-pointer active:scale-95"
+            >
+              🔄 Replay
+            </button>
+
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                handleOpenMap();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenMap();
+              }}
+              className="flex-1 py-2 sm:py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white/90 text-xs font-bold border border-white/10 touch-btn cursor-pointer active:scale-95"
+            >
+              🗺️ Level Map
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
