@@ -1,9 +1,12 @@
 "use client";
 
 import React from "react";
-import { LevelConfig } from "../utils/types";
+import { DifficultyConfig, GameSessionConfig, LevelConfig, ThemeConfig } from "../utils/types";
 
 interface GameOverModalProps {
+  session?: GameSessionConfig | null;
+  sessionTheme?: ThemeConfig;
+  sessionDifficulty?: DifficultyConfig;
   level: LevelConfig;
   isTimeUp: boolean;
   applesEaten: number;
@@ -14,6 +17,9 @@ interface GameOverModalProps {
 }
 
 export const GameOverModal: React.FC<GameOverModalProps> = ({
+  session,
+  sessionTheme,
+  sessionDifficulty,
   level,
   isTimeUp,
   applesEaten,
@@ -48,6 +54,9 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           {isTimeUp
             ? `You needed ${Math.max(0, targetApples - applesEaten)} more apples to complete Level ${level.level}.`
             : `Crashed in Level ${level.level}: ${level.title}!`}
+          {session && sessionTheme && sessionDifficulty
+            ? ` (${sessionTheme.icon} ${sessionTheme.name} • ${sessionDifficulty.label})`
+            : ""}
         </p>
 
         {/* Stats Card */}

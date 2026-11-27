@@ -1,10 +1,18 @@
 "use client";
 
 import React from "react";
-import { LevelConfig, LevelProgress } from "../utils/types";
-import { TIER_CONFIG } from "../utils/levels";
+import {
+  DifficultyConfig,
+  GameSessionConfig,
+  LevelConfig,
+  LevelProgress,
+  ThemeConfig,
+} from "../utils/types";
 
 interface ReadyOverlayProps {
+  session?: GameSessionConfig | null;
+  sessionTheme?: ThemeConfig;
+  sessionDifficulty?: DifficultyConfig;
   level: LevelConfig;
   progress: LevelProgress;
   onOpenLevelSelector: () => void;
@@ -12,13 +20,15 @@ interface ReadyOverlayProps {
 }
 
 export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({
+  session,
+  sessionTheme,
+  sessionDifficulty,
   level,
   progress,
   onOpenLevelSelector,
   onStart,
 }) => {
   const starsEarned = progress.stars[level.level] || 0;
-  const tierStyle = TIER_CONFIG[level.tier];
 
   return (
     <div
@@ -42,11 +52,19 @@ export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Level Header */}
+        {/* Level Header: Difficulty Badge & Stars */}
         <div className="flex items-center justify-between w-full mb-1">
-          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${tierStyle.bg} ${tierStyle.textColor} border ${tierStyle.border}`}>
-            {tierStyle.badge}
-          </span>
+          {sessionDifficulty ? (
+            <span
+              className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${sessionDifficulty.badgeClass}`}
+            >
+              {sessionDifficulty.badge}
+            </span>
+          ) : (
+            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white/10 text-white/70 border border-white/15">
+              Rolling...
+            </span>
+          )}
 
           {/* Stars */}
           <div className="flex text-xs text-amber-400">
@@ -62,13 +80,26 @@ export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({
           Level {level.level}: {level.title}
         </div>
 
-        {/* Theme & Snake Skin Badge */}
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/80 my-1">
-          <span>{tierStyle.themeIcon}</span>
-          <span>{tierStyle.themeName}</span>
-          <span className="text-white/30">•</span>
-          <span className={tierStyle.textColor}>{tierStyle.snakeColor}</span>
-        </div>
+        {/* Dynamic Map Theme, Layout & Obstacle Summary */}
+        {session && sessionTheme ? (
+          <>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/85 my-1">
+              <span>{sessionTheme.icon}</span>
+              <span>{sessionTheme.name}</span>
+              <span className="text-white/30">•</span>
+              <span className="capitalize text-cyan-300">{session.pattern}</span>
+              <span className="text-white/30">•</span>
+              <span className="text-amber-300">{session.obstacles.length} obstacles</span>
+            </div>
+            <div className="text-[10px] font-mono text-white/45 mb-1">
+              Seed #{session.seed.slice(0, 10)}
+            </div>
+          </>
+        ) : (
+          <div className="text-[11px] text-white/60 my-1">
+            Preparing random map & layout...
+          </div>
+        )}
 
         <p className="text-xs text-white/70 mb-2.5">
           🎯 Eat <span className="text-emerald-400 font-bold">{level.targetApples} apples</span> in{" "}

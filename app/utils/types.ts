@@ -3,6 +3,58 @@ export type Direction = { x: number; y: number };
 
 export type Status = "ready" | "playing" | "paused" | "over" | "level_clear";
 
+export type MapThemeId = "jungle" | "desert" | "ice" | "space" | "lava" | "ocean";
+
+export type DifficultyLevel = "easy" | "medium" | "hard" | "expert";
+
+export type LayoutPattern =
+  | "open"
+  | "scattered"
+  | "pillars"
+  | "corridors"
+  | "islands"
+  | "crossroads"
+  | "fortress"
+  | "labyrinth";
+
+export interface Obstacle extends Point {
+  variant?: number;
+  spawnedAt?: number;
+}
+
+export interface DifficultyConfig {
+  id: DifficultyLevel;
+  label: string;
+  badge: string;
+  description: string;
+  baseSpeed: number; // initial tick interval in ms (lower is faster)
+  minSpeed: number; // fastest possible tick interval in ms
+  speedStepFoods: number; // foods needed per speed increase
+  speedStepMs: number; // ms reduced per speed increase
+  obstacleRatio: number; // initial obstacle density
+  maxInitialObstacles: number;
+  obstacleStepFoods: number; // 0 = never add dynamic obstacles
+  maxProgressiveObstacles: number;
+  bonusInterval: number; // guaranteed bonus food every N foods
+  bonusChance: number; // occasional chance on other foods
+  bonusDurationMs: number;
+  scorePerFood: number;
+  bonusScore: number;
+  badgeClass: string;
+}
+
+export interface GameSessionConfig {
+  sessionId: string;
+  seed: string;
+  level: number;
+  mapThemeId: MapThemeId;
+  difficulty: DifficultyLevel;
+  pattern: LayoutPattern;
+  obstacles: Obstacle[];
+  initialFood: Point;
+  createdAt: number;
+}
+
 export interface LevelConfig {
   level: number;
   title: string;
@@ -41,6 +93,12 @@ export interface ThemeConfig {
   goldenColor: string;
   hudBg: string;
   accent: string;
+  obstacleColor?: string;
+  obstacleHighlight?: string;
+  obstacleAccent?: string;
+  bgDetailColor?: string;
+  environmentDesc?: string;
+  obstacleLabel?: string;
 }
 
 export interface Particle {

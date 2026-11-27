@@ -1,6 +1,6 @@
 import { LevelConfig } from "./types";
 
-export const MAX_LEVELS = 10000;
+export const MAX_LEVELS = Number.POSITIVE_INFINITY;
 
 // 4 Cycling Biome Tiers (Changes every 5 levels)
 export const BIOMES = [
@@ -106,10 +106,10 @@ export const TIER_CONFIG = {
 };
 
 /**
- * Procedural Level Generator: computes any level config from 1 to 10,000+ dynamically
+ * Procedural Level Generator: computes any level config from 1 to unlimited levels dynamically
  */
 export function getLevelConfig(lvlNum: number): LevelConfig {
-  const level = Math.max(1, Math.min(MAX_LEVELS, Math.floor(lvlNum || 1)));
+  const level = Math.max(1, Math.floor(Number.isFinite(lvlNum) ? lvlNum : 1));
 
   // Every 5 levels, the biome changes
   const tierBracket = Math.floor((level - 1) / 5);
@@ -154,19 +154,21 @@ export function getLevelConfig(lvlNum: number): LevelConfig {
 }
 
 /**
- * Generate a slice/batch of levels on demand for UI paging (e.g. 1-20, 21-40)
+ * Generate a slice/batch of levels on demand for UI paging (e.g. 1-20, 21-40, unlimited)
  */
 export function getLevelBatch(startLevel: number, count: number = 20): LevelConfig[] {
-  const start = Math.max(1, Math.min(MAX_LEVELS, startLevel));
-  const effectiveCount = Math.min(count, MAX_LEVELS - start + 1);
-  return Array.from({ length: effectiveCount }, (_, i) => getLevelConfig(start + i));
+  const start = Math.max(1, Math.floor(startLevel || 1));
+  return Array.from({ length: count }, (_, i) => getLevelConfig(start + i));
 }
 
 // Default initial 20 levels array for backwards compatibility
 export const LEVELS: LevelConfig[] = getLevelBatch(1, 20);
 
-// Helper for Roman numerals in cycle titles
+// Helper for Roman numerals in cycle titles (O(1) safe for unlimited levels)
 function toRoman(num: number): string {
+  if (!Number.isFinite(num) || num > 3999) {
+    return `#${num}`;
+  }
   const lookup: Record<string, number> = {
     M: 1000,
     CM: 900,
