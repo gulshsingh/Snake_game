@@ -1,10 +1,12 @@
 "use client";
 
 import React from "react";
-import { Status } from "../utils/types";
+import { DifficultyConfig, Status, ThemeConfig } from "../utils/types";
 
 interface GameHudProps {
   status: Status;
+  sessionTheme?: ThemeConfig;
+  sessionDifficulty?: DifficultyConfig;
   applesEaten: number;
   targetApples: number;
   currentLevel: number;
@@ -19,6 +21,7 @@ interface GameHudProps {
   onToggleControlMode: () => void;
   onToggleFullscreen: () => void;
   onTogglePause: () => void;
+  onRestart: () => void;
   onOpenLevelSelector: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
@@ -26,6 +29,8 @@ interface GameHudProps {
 
 export const GameHud: React.FC<GameHudProps> = ({
   status,
+  sessionTheme,
+  sessionDifficulty,
   applesEaten,
   targetApples,
   currentLevel,
@@ -40,6 +45,7 @@ export const GameHud: React.FC<GameHudProps> = ({
   onToggleControlMode,
   onToggleFullscreen,
   onTogglePause,
+  onRestart,
   onOpenLevelSelector,
   onMouseEnter,
   onMouseLeave,
@@ -67,7 +73,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           : "w-full max-w-4xl glass-panel rounded-xl sm:rounded-2xl p-1.5 px-2 sm:p-2 sm:px-4 flex items-center justify-between shadow-xl border border-white/10 shrink-0 z-20 transition-all duration-300"
       }
     >
-      {/* LEFT: APPLES GOAL & LEVEL MAP TRIGGER */}
+      {/* LEFT: APPLES GOAL, LEVEL MAP TRIGGER & MAP/DIFFICULTY BADGE */}
       <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
         <div className="flex items-center gap-1">
           <span className="text-lg sm:text-2xl animate-bounce">🍎</span>
@@ -95,6 +101,18 @@ export const GameHud: React.FC<GameHudProps> = ({
           <span>Lvl {currentLevel}</span>
           <span className="text-[10px] text-amber-400">⭐{totalStars}</span>
         </button>
+
+        {sessionTheme && sessionDifficulty && (
+          <span
+            className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${sessionDifficulty.badgeClass}`}
+            title={`${sessionTheme.name} • ${sessionDifficulty.label}`}
+          >
+            <span>{sessionTheme.icon}</span>
+            <span>{sessionTheme.name.split(" ").pop()}</span>
+            <span className="opacity-50">•</span>
+            <span>{sessionDifficulty.label}</span>
+          </span>
+        )}
       </div>
 
       {/* CENTER: COUNTDOWN TIMER */}
@@ -158,6 +176,21 @@ export const GameHud: React.FC<GameHudProps> = ({
           {isFullscreen ? "🗗" : "⛶"}
         </button>
 
+        {/* Quick Restart */}
+        {(status === "playing" || status === "paused") && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRestart();
+            }}
+            className="p-1 sm:p-2 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 touch-btn text-xs sm:text-sm text-white/85 cursor-pointer"
+            title="Restart Current Level (R)"
+          >
+            🔄
+          </button>
+        )}
+
         {/* Pause / Play */}
         <button
           type="button"
@@ -166,7 +199,7 @@ export const GameHud: React.FC<GameHudProps> = ({
             onTogglePause();
           }}
           className="p-1 sm:p-2 px-2 sm:px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm border border-emerald-400/30 touch-btn shadow-md cursor-pointer active:scale-95"
-          title="Pause / Resume"
+          title={status === "playing" ? "Pause Game (Space / Esc)" : "Resume / Play"}
         >
           {status === "playing" ? "⏸" : "▶"}
         </button>

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { LevelConfig, LevelProgress } from "../utils/types";
-import { getLevelBatch, MAX_LEVELS, TIER_CONFIG } from "../utils/levels";
+import { getLevelBatch, TIER_CONFIG } from "../utils/levels";
 
 interface LevelSelectorModalProps {
   currentLevel: number;
@@ -17,20 +17,14 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
   onSelectLevel,
   onClose,
 }) => {
-  const [selectedTier, setSelectedTier] = useState<"all" | "normal" | "medium" | "hard" | "mythic">("all");
-
   const pageSize = 20;
   const initialPage = Math.floor((currentLevel - 1) / pageSize);
   const [page, setPage] = useState(initialPage);
-  const maxPage = Math.floor((MAX_LEVELS - 1) / pageSize);
 
   const startLevel = page * pageSize + 1;
   const pageLevels = getLevelBatch(startLevel, pageSize);
 
   const totalStars = Object.values(progress.stars).reduce((sum, val) => sum + val, 0);
-
-  const filteredLevels =
-    selectedTier === "all" ? pageLevels : pageLevels.filter((l) => l.tier === selectedTier);
 
   return (
     <div
@@ -62,7 +56,7 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
               </h2>
             </div>
             <p className="text-[10px] sm:text-xs text-white/60 mt-0.5 truncate">
-              Automatic Campaign with 10,000 Levels & dynamic board themes!
+              Unlimited procedural levels with dynamic maps & difficulties!
             </p>
           </div>
 
@@ -94,29 +88,17 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
           </div>
         </div>
 
-        {/* TIER FILTER TABS */}
+        {/* PAGE LEVEL HEADER BAR */}
         <div
           className="flex gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 border-b border-white/10 overflow-x-auto shrink-0 bg-black/15 no-scrollbar"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {(["all", "normal", "medium", "hard", "mythic"] as const).map((tierKey) => (
-            <button
-              key={tierKey}
-              type="button"
-              onPointerDown={() => setSelectedTier(tierKey)}
-              onClick={() => setSelectedTier(tierKey)}
-              className={`px-2.5 sm:px-3 py-1 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider shrink-0 touch-btn cursor-pointer transition-all ${
-                selectedTier === tierKey
-                  ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30 scale-105"
-                  : "bg-white/5 text-white/70 hover:bg-white/10"
-              }`}
-            >
-              {tierKey === "all" ? "All Page Levels" : TIER_CONFIG[tierKey].badge}
-            </button>
-          ))}
+          <span className="px-2.5 sm:px-3 py-1 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider shrink-0 bg-emerald-500 text-black shadow-md shadow-emerald-500/30">
+            All Page Levels
+          </span>
         </div>
 
-        {/* PAGINATION / RANGE CONTROLS (For 10,000 Levels) */}
+        {/* PAGINATION / RANGE CONTROLS (Unlimited Levels) */}
         <div className="flex items-center justify-between px-2.5 sm:px-4 py-1.5 border-b border-white/5 bg-black/25 text-xs shrink-0">
           <button
             type="button"
@@ -130,7 +112,7 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
 
           <div className="flex items-center gap-2">
             <span className="font-extrabold text-emerald-400 font-mono text-[11px] sm:text-xs">
-              Lvl {startLevel} - {Math.min(MAX_LEVELS, startLevel + pageSize - 1)}
+              Lvl {startLevel} - {startLevel + pageSize - 1}
             </span>
             {page !== initialPage && (
               <button
@@ -145,9 +127,8 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
 
           <button
             type="button"
-            disabled={page >= maxPage}
-            onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
-            className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed text-white/80 font-bold touch-btn flex items-center gap-1 text-[11px] cursor-pointer"
+            onClick={() => setPage((p) => p + 1)}
+            className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/80 font-bold touch-btn flex items-center gap-1 text-[11px] cursor-pointer"
           >
             <span>Next 20</span>
             <span>▶</span>
@@ -159,7 +140,7 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
           className="flex-1 overflow-y-auto p-2 sm:p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-2.5 no-scrollbar"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {filteredLevels.map((lvl) => {
+          {pageLevels.map((lvl) => {
             const isUnlocked = lvl.level <= progress.unlockedLevel;
             const isCurrent = lvl.level === currentLevel;
             const starsEarned = progress.stars[lvl.level] || 0;
@@ -245,7 +226,7 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
           <div>
             Highest Unlocked: <span className="text-emerald-400 font-bold">Level {progress.unlockedLevel}</span>
           </div>
-          <div className="text-white/50">Auto Engine: 10,000 Levels</div>
+          <div className="text-white/50">Auto Engine: Unlimited Levels</div>
         </div>
       </div>
     </div>

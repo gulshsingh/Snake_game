@@ -2,8 +2,20 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { soundFx } from "./utils/audio";
-import { THEMES } from "./utils/themes";
-import { getLevelConfig, MAX_LEVELS } from "./utils/levels";
+import { MAP_THEME_IDS, THEMES, getMainBackgroundGradient } from "./utils/themes";
+import { getLevelConfig } from "./utils/levels";
+import {
+  DIFFICULTY_CONFIGS,
+  DIFFICULTY_LEVELS,
+  createGameSession,
+  ensureFullConnectivity,
+  findSafeFoodCell,
+  findSafeProgressiveObstacle,
+  generateMapLayout,
+  getInitialSnake,
+  getLevelSpeedConfig,
+} from "./utils/sessionGenerator";
+import { drawBoardBackground, drawObstacles } from "./utils/mapRenderer";
 import {
   Point,
   Direction,
@@ -13,6 +25,10 @@ import {
   Particle,
   FloatingText,
   GoldenApple,
+  Obstacle,
+  GameSessionConfig,
+  MapThemeId,
+  DifficultyLevel,
 } from "./utils/types";
 
 // Modular Child Components
@@ -40,9 +56,12 @@ function getInitialGameState(cols = 20, rows = 20) {
     queue: [] as Direction[],
     food: { x: Math.min(cols - 3, startX + 4), y: startY } as Point,
     golden: null as GoldenApple | null,
+    obstacles: [] as Obstacle[],
     score: 0,
     applesEaten: 0,
     goldenEaten: 0,
+    dynamicObstaclesAdded: 0,
+    currentSpeedMs: 135,
     startTime: 0,
     bulges: [] as { index: number; progress: number }[],
     hasStartedMoving: false,
@@ -70,7 +89,18 @@ export default function SnakeGame() {
     rows: 20,
   });
   const [status, setStatusState] = useState<Status>("ready");
-  const [activeThemeId, setActiveThemeId] = useState<string>("garden");
+  const [activeThemeId, setActiveThemeId] = useState<string>("jungle");
+  const [sessionConfig, setSessionConfig] = useState<GameSessionConfig | null>(null);
+  const sessionRef = useRef<GameSessionConfig | null>(null);
+  const lastMapThemeRef = useRef<MapThemeId | null>(null);
+  const bestScoreRef = useRef<number>(0);
+  const [hudStats, setHudStats] = useState({
+    score: 0,
+    applesEaten: 0,
+    snakeLength: 3,
+    speedMs: 135,
+    bestScore: 0,
+  });
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showFullscreenHud, setShowFullscreenHud] = useState(false);
@@ -86,6 +116,8 @@ export default function SnakeGame() {
     bestTimes: {},
   });
   const [showLevelSelector, setShowLevelSelector] = useState(false);
+  const showLevelSelectorRef = useRef(false);
+  showLevelSelectorRef.current = showLevelSelector;
   const [timeLeft, setTimeLeft] = useState<number>(75);
   const [levelTimeTaken, setLevelTimeTaken] = useState<number>(0);
   const [earnedStars, setEarnedStars] = useState<number>(1);
@@ -95,15 +127,6 @@ export default function SnakeGame() {
   const currentLevelConfigRef = useRef(currentLevelConfig);
   currentLevelConfigRef.current = currentLevelConfig;
 
-  // DYNAMIC THEME SYNC FOR LEVELS (Tier 1: Levels 1-5, Tier 2: 6-10, Tier 3: 11-15, Tier 4: 16-20, cycling every 5 levels up to 10,000)
-  useEffect(() => {
-    const lvl = getLevelConfig(currentLevelNum);
-    if (lvl && THEMES[lvl.themeId]) {
-      setActiveThemeId(lvl.themeId);
-      themeRef.current = THEMES[lvl.themeId];
-    }
-  }, [currentLevelNum]);
-
   // Animation and visual effects refs
   const particles = useRef<Particle[]>([]);
   const floatingTexts = useRef<FloatingText[]>([]);
@@ -111,35 +134,144 @@ export default function SnakeGame() {
   const tongueTimer = useRef(0);
   const mouthOpenRef = useRef(0);
   const animTime = useRef(0);
+  const pausedAtRef = useRef<number | null>(null);
+  const resumeGraceMsRef = useRef(0);
+  const lastPauseToggleRef = useRef(0);
 
   function setStatus(s: Status) {
     statusRef.current = s;
     setStatusState(s);
   }
 
-  // Safe random food generator
+  const syncHudStats = useCallback(() => {
+    const g = game.current;
+    setHudStats({
+      score: g.score,
+      applesEaten: g.applesEaten,
+      snakeLength: g.snake.length,
+      speedMs: g.currentSpeedMs,
+      bestScore: bestScoreRef.current,
+    });
+  }, []);
+
+  // Safe random food generator (respects snake, obstacles, and excluded points)
   const generateRandomFood = useCallback(
-    (snake: Point[], excludePoint?: Point): Point => {
+    (snake: Point[], excludePoint?: Point, obstacles: Obstacle[] = []): Point => {
       const { cols, rows } = gridSizeRef.current;
-      let attempts = 0;
-      while (attempts < 1000) {
-        attempts++;
-        const p = {
-          x: Math.floor(Math.random() * cols),
-          y: Math.floor(Math.random() * rows),
-        };
-        const onSnake = snake.some((s) => s.x === p.x && s.y === p.y);
-        const onExclude =
-          excludePoint && excludePoint.x === p.x && excludePoint.y === p.y;
-        if (!onSnake && !onExclude) return p;
-      }
-      return { x: 0, y: 0 };
+      return findSafeFoodCell(
+        cols,
+        rows,
+        snake,
+        obstacles,
+        excludePoint ? [excludePoint] : []
+      );
     },
     []
   );
 
-  // Initialize storage & preferences
+  const applySessionToGame = useCallback(
+    (session: GameSessionConfig, cols: number, rows: number, isPortrait: boolean) => {
+      const { snake: initialSnake, dir: initialDir } = getInitialSnake(
+        cols,
+        rows,
+        isPortrait
+      );
+      const speedCfg = getLevelSpeedConfig(session.difficulty, session.level);
+
+      sessionRef.current = session;
+      setSessionConfig(session);
+      if (THEMES[session.mapThemeId]) {
+        setActiveThemeId(session.mapThemeId);
+        themeRef.current = THEMES[session.mapThemeId];
+      }
+
+      game.current = {
+        snake: initialSnake,
+        prevSnake: initialSnake.map((p) => ({ ...p })),
+        dir: initialDir,
+        nextDir: initialDir,
+        queue: [],
+        food: { ...session.initialFood },
+        golden: null,
+        obstacles: session.obstacles.map((o) => ({ ...o })),
+        score: 0,
+        applesEaten: 0,
+        goldenEaten: 0,
+        dynamicObstaclesAdded: 0,
+        currentSpeedMs: speedCfg.baseSpeed,
+        startTime: Date.now(),
+        bulges: [],
+        hasStartedMoving: false,
+      };
+      particles.current = [];
+      floatingTexts.current = [];
+      shakeRef.current = 0;
+      mouthOpenRef.current = 0;
+      syncHudStats();
+    },
+    [syncHudStats]
+  );
+
+  const initFreshSession = useCallback(
+    (
+      cols?: number,
+      rows?: number,
+      isPortrait?: boolean,
+      levelOverride?: number,
+      lockedOverride?: {
+        seed: string;
+        mapThemeId: MapThemeId;
+        difficulty: DifficultyLevel;
+      } | null
+    ) => {
+      const grid = gridSizeRef.current;
+      const cCols = cols ?? grid.cols;
+      const cRows = rows ?? grid.rows;
+      const portrait =
+        isPortrait ??
+        (typeof window !== "undefined" && window.innerHeight > window.innerWidth);
+      const lvlNum = levelOverride ?? currentLevelConfigRef.current.level;
+
+      const newSession = createGameSession({
+        cols: cCols,
+        rows: cRows,
+        level: lvlNum,
+        isPortrait: portrait,
+        previousMapThemeId: lastMapThemeRef.current,
+        seed: lockedOverride?.seed,
+        fixedMapThemeId: lockedOverride?.mapThemeId,
+        fixedDifficulty: lockedOverride?.difficulty,
+      });
+
+      lastMapThemeRef.current = newSession.mapThemeId;
+      try {
+        localStorage.setItem("snake-last-map", newSession.mapThemeId);
+        localStorage.setItem(
+          "snake-active-level-session",
+          JSON.stringify({
+            level: lvlNum,
+            seed: newSession.seed,
+            mapThemeId: newSession.mapThemeId,
+            difficulty: newSession.difficulty,
+          })
+        );
+      } catch {}
+
+      applySessionToGame(newSession, cCols, cRows, portrait);
+      return newSession;
+    },
+    [applySessionToGame]
+  );
+
+  // Initialize storage, preferences & initial independent random session
   useEffect(() => {
+    let initialLvl = 1;
+    let lockedSession: {
+      seed: string;
+      mapThemeId: MapThemeId;
+      difficulty: DifficultyLevel;
+    } | null = null;
+
     try {
       const savedControls = localStorage.getItem("snake-controls") as "dpad" | "swipe";
       if (savedControls && ["dpad", "swipe"].includes(savedControls)) {
@@ -151,14 +283,50 @@ export default function SnakeGame() {
       if (savedUnlocked) {
         const u = Number(savedUnlocked);
         if (u >= 1) {
+          initialLvl = Math.floor(u);
           setLevelProgress((prev) => ({ ...prev, unlockedLevel: u }));
-          setCurrentLevelNum(Math.min(u, MAX_LEVELS));
+          setCurrentLevelNum(initialLvl);
+          setTimeLeft(getLevelConfig(initialLvl).timeLimit);
         }
       }
       if (savedStars) {
         try {
           setLevelProgress((prev) => ({ ...prev, stars: JSON.parse(savedStars) }));
         } catch {}
+      }
+
+      const savedLastMap = localStorage.getItem("snake-last-map") as MapThemeId | null;
+      if (savedLastMap) {
+        lastMapThemeRef.current = savedLastMap;
+      }
+      const savedBest = Number(localStorage.getItem("snake-session-best") || "0");
+      if (Number.isFinite(savedBest) && savedBest > 0) {
+        bestScoreRef.current = savedBest;
+      }
+
+      const rawLocked = localStorage.getItem("snake-active-level-session");
+      if (rawLocked) {
+        const parsed = JSON.parse(rawLocked) as {
+          level?: number;
+          seed?: string;
+          mapThemeId?: MapThemeId;
+          difficulty?: DifficultyLevel;
+        };
+        if (
+          parsed &&
+          parsed.level === initialLvl &&
+          parsed.seed &&
+          parsed.mapThemeId &&
+          MAP_THEME_IDS.includes(parsed.mapThemeId) &&
+          parsed.difficulty &&
+          DIFFICULTY_LEVELS.includes(parsed.difficulty)
+        ) {
+          lockedSession = {
+            seed: parsed.seed,
+            mapThemeId: parsed.mapThemeId,
+            difficulty: parsed.difficulty,
+          };
+        }
       }
 
       setIsMuted(soundFx.muted);
@@ -168,7 +336,9 @@ export default function SnakeGame() {
       typeof window !== "undefined" &&
       ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768);
     setIsMobileDevice(isTouch);
-  }, []);
+
+    initFreshSession(undefined, undefined, undefined, initialLvl, lockedSession);
+  }, [initFreshSession]);
 
   // ADAPTIVE RESIZING (Specialized for iPhone, Mobile & Desktop)
   const handleResize = useCallback(() => {
@@ -220,15 +390,73 @@ export default function SnakeGame() {
     });
 
     const g = game.current;
-    if (g && g.snake) {
+    if (statusRef.current === "ready" && sessionRef.current) {
+      const { snake: initialSnake, dir: initialDir } = getInitialSnake(
+        cols,
+        rows,
+        isPortrait
+      );
+      const layout = generateMapLayout({
+        seed: sessionRef.current.seed,
+        cols,
+        rows,
+        difficulty: sessionRef.current.difficulty,
+        snake: initialSnake,
+        dir: initialDir,
+        level: sessionRef.current.level,
+      });
+      const updatedSession: GameSessionConfig = {
+        ...sessionRef.current,
+        pattern: layout.pattern,
+        obstacles: layout.obstacles,
+        initialFood: layout.initialFood,
+      };
+      applySessionToGame(updatedSession, cols, rows, isPortrait);
+    } else if (g && g.snake) {
       g.snake.forEach((p) => {
         p.x = Math.max(0, Math.min(cols - 1, p.x));
         p.y = Math.max(0, Math.min(rows - 1, p.y));
       });
       g.food.x = Math.max(0, Math.min(cols - 1, g.food.x));
       g.food.y = Math.max(0, Math.min(rows - 1, g.food.y));
+      if (g.obstacles && g.obstacles.length) {
+        const snakeKeys = new Set(g.snake.map((p) => `${p.x},${p.y}`));
+        const foodKey = `${g.food.x},${g.food.y}`;
+        const seen = new Set<string>();
+        const clamped = g.obstacles
+          .map((o) => ({
+            ...o,
+            x: Math.max(0, Math.min(cols - 1, o.x)),
+            y: Math.max(0, Math.min(rows - 1, o.y)),
+          }))
+          .filter((o) => {
+            const k = `${o.x},${o.y}`;
+            if (snakeKeys.has(k) || k === foodKey || seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
+        g.obstacles = ensureFullConnectivity(cols, rows, g.snake[0], clamped);
+      }
+      // Ensure food & golden apple remain valid and non-overlapping after resize
+      if (
+        g.snake.some((s) => s.x === g.food.x && s.y === g.food.y) ||
+        g.obstacles.some((o) => o.x === g.food.x && o.y === g.food.y)
+      ) {
+        g.food = findSafeFoodCell(cols, rows, g.snake, g.obstacles);
+      }
+      if (
+        g.golden &&
+        g.golden.active &&
+        (g.snake.some((s) => s.x === g.golden!.x && s.y === g.golden!.y) ||
+          g.obstacles.some((o) => o.x === g.golden!.x && o.y === g.golden!.y) ||
+          (g.golden.x === g.food.x && g.golden.y === g.food.y))
+      ) {
+        const nextGolden = findSafeFoodCell(cols, rows, g.snake, g.obstacles, [g.food]);
+        g.golden.x = nextGolden.x;
+        g.golden.y = nextGolden.y;
+      }
     }
-  }, [controlMode]);
+  }, [controlMode, applySessionToGame]);
 
   useEffect(() => {
     handleResize();
@@ -331,96 +559,83 @@ export default function SnakeGame() {
 
   // START GAME (Universal: works 100% on iPhone iOS Safari, Android, and Desktop)
   const lastStartRef = useRef(0);
-  const start = useCallback(() => {
-    const now = Date.now();
-    if (now - lastStartRef.current < 200) return;
-    lastStartRef.current = now;
+  const start = useCallback(
+    (forceFreshSession = false) => {
+      const now = Date.now();
+      if (now - lastStartRef.current < 200) return;
+      lastStartRef.current = now;
 
-    try {
-      const { cols, rows } = gridSizeRef.current;
-      const isPortrait = typeof window !== "undefined" && window.innerHeight > window.innerWidth;
-      const startX = Math.floor(cols / 2);
-      const startY = Math.floor(rows / 2);
-      const initialDir: Direction = isPortrait ? { x: 0, y: -1 } : { x: 1, y: 0 };
-      const initialSnake: Point[] = isPortrait
-        ? [
-            { x: startX, y: startY },
-            { x: startX, y: Math.min(rows - 1, startY + 1) },
-            { x: startX, y: Math.min(rows - 1, startY + 2) },
-          ]
-        : [
-            { x: startX, y: startY },
-            { x: Math.max(0, startX - 1), y: startY },
-            { x: Math.max(0, startX - 2), y: startY },
-          ];
+      try {
+        const wasActiveRestart =
+          statusRef.current === "playing" || statusRef.current === "paused";
+        const { cols, rows } = gridSizeRef.current;
+        const isPortrait =
+          typeof window !== "undefined" && window.innerHeight > window.innerWidth;
 
-      // Apply current level theme and time limit
-      const currentLvl = currentLevelConfigRef.current;
-      if (currentLvl) {
-        setTimeLeft(currentLvl.timeLimit);
-        if (THEMES[currentLvl.themeId]) {
-          setActiveThemeId(currentLvl.themeId);
-          themeRef.current = THEMES[currentLvl.themeId];
+        const currentLvl = currentLevelConfigRef.current;
+        if (currentLvl) {
+          setTimeLeft(currentLvl.timeLimit);
         }
+        setIsTimeUp(false);
+        pausedAtRef.current = null;
+        resumeGraceMsRef.current = 0;
+
+        if (!forceFreshSession && sessionRef.current) {
+          // Keep current level's assigned map, difficulty, seed, and layout until level is won
+          applySessionToGame(sessionRef.current, cols, rows, isPortrait);
+        } else {
+          // Generate a fresh random map, difficulty, seed, and layout for new level / post-win replay
+          initFreshSession(cols, rows, isPortrait, currentLvl?.level);
+        }
+        game.current.startTime = Date.now();
+        setStatus("playing");
+
+        if (wasActiveRestart) {
+          const c = cellRef.current;
+          floatingTexts.current.push({
+            id: Date.now() + Math.random(),
+            text: "🔄 LEVEL RESTARTED",
+            x: (cols * c) / 2,
+            y: Math.max(c * 1.5, (rows * c) * 0.25),
+            color: "#34d399",
+            alpha: 1,
+            vy: -0.7,
+            scale: 1,
+          });
+        }
+      } catch (e) {
+        console.error("Error in start:", e);
+        setStatus("playing");
       }
 
-      setIsTimeUp(false);
-      game.current = {
-        snake: initialSnake,
-        prevSnake: initialSnake.map((p) => ({ ...p })),
-        dir: initialDir,
-        nextDir: initialDir,
-        queue: [],
-        food: generateRandomFood(initialSnake),
-        golden: null,
-        score: 0,
-        applesEaten: 0,
-        goldenEaten: 0,
-        startTime: Date.now(),
-        bulges: [],
-        hasStartedMoving: false,
-      };
-      particles.current = [];
-      floatingTexts.current = [];
-      shakeRef.current = 0;
-      mouthOpenRef.current = 0;
-      setStatus("playing");
-    } catch (e) {
-      console.error("Error in start:", e);
-      setStatus("playing");
-    }
-
-    try {
-      soundFx.playTurn();
-    } catch {}
-  }, [generateRandomFood]);
+      try {
+        soundFx.playTurn();
+      } catch {}
+    },
+    [applySessionToGame, initFreshSession]
+  );
 
   const selectLevel = (lvl: LevelConfig) => {
+    lastStartRef.current = 0;
+    const isDifferentLevel = lvl.level !== currentLevelNum;
+    const isAlreadyWon = statusRef.current === "level_clear";
     setCurrentLevelNum(lvl.level);
     currentLevelConfigRef.current = lvl;
     setShowLevelSelector(false);
     setTimeLeft(lvl.timeLimit);
     setIsTimeUp(false);
-    if (THEMES[lvl.themeId]) {
-      setActiveThemeId(lvl.themeId);
-      themeRef.current = THEMES[lvl.themeId];
-    }
-    start();
+    start(isDifferentLevel || isAlreadyWon);
   };
 
   const nextLevel = useCallback(() => {
     lastStartRef.current = 0;
-    const nextLvlNum = Math.min(MAX_LEVELS, currentLevelNum + 1);
+    const nextLvlNum = currentLevelNum + 1;
     const nextLvl = getLevelConfig(nextLvlNum);
     setCurrentLevelNum(nextLvlNum);
     currentLevelConfigRef.current = nextLvl;
     setTimeLeft(nextLvl.timeLimit);
     setIsTimeUp(false);
-    if (THEMES[nextLvl.themeId]) {
-      setActiveThemeId(nextLvl.themeId);
-      themeRef.current = THEMES[nextLvl.themeId];
-    }
-    start();
+    start(true);
   }, [currentLevelNum, start]);
 
   const turn = useCallback(
@@ -430,10 +645,14 @@ export default function SnakeGame() {
         return;
       }
       if (statusRef.current === "ready" || statusRef.current === "over") {
-        start();
+        start(false);
         if (game.current) {
-          game.current.dir = d;
-          game.current.nextDir = d;
+          const isOpp =
+            game.current.dir.x + d.x === 0 && game.current.dir.y + d.y === 0;
+          if (!isOpp) {
+            game.current.dir = d;
+            game.current.nextDir = d;
+          }
           game.current.hasStartedMoving = true;
         }
         return;
@@ -441,7 +660,13 @@ export default function SnakeGame() {
       if (statusRef.current !== "playing") return;
 
       const g = game.current;
-      g.hasStartedMoving = true;
+      if (!g.hasStartedMoving) {
+        g.hasStartedMoving = true;
+        g.startTime = Date.now();
+      }
+      if (resumeGraceMsRef.current > 0) {
+        resumeGraceMsRef.current = 0;
+      }
       const last = g.queue.length ? g.queue[g.queue.length - 1] : g.dir;
       const isOpposite = last.x + d.x === 0 && last.y + d.y === 0;
       const isSame = last.x === d.x && last.y === d.y;
@@ -456,19 +681,85 @@ export default function SnakeGame() {
     [start, nextLevel]
   );
 
-  const togglePause = useCallback(() => {
-    if (statusRef.current === "playing") {
-      setStatus("paused");
-    } else if (statusRef.current === "paused") {
-      setStatus("playing");
-    } else {
-      start();
+  const pauseGame = useCallback(() => {
+    if (statusRef.current !== "playing") return;
+    pausedAtRef.current = Date.now();
+    resumeGraceMsRef.current = 0;
+    setStatus("paused");
+    try {
+      soundFx.playTurn();
+    } catch {}
+  }, []);
+
+  const resumeGame = useCallback(() => {
+    if (statusRef.current !== "paused") return;
+    if (pausedAtRef.current !== null && game.current.hasStartedMoving) {
+      game.current.startTime += Date.now() - pausedAtRef.current;
     }
-  }, [start]);
+    pausedAtRef.current = null;
+    resumeGraceMsRef.current = game.current.hasStartedMoving ? 1200 : 0;
+    setStatus("playing");
+    try {
+      soundFx.playTurn();
+    } catch {}
+  }, []);
+
+  const togglePause = useCallback(() => {
+    const now = Date.now();
+    if (now - lastPauseToggleRef.current < 220) return;
+    lastPauseToggleRef.current = now;
+
+    if (statusRef.current === "playing") {
+      pauseGame();
+    } else if (statusRef.current === "paused") {
+      resumeGame();
+    } else {
+      start(false);
+    }
+  }, [pauseGame, resumeGame, start]);
+
+  const openLevelSelector = useCallback(() => {
+    if (statusRef.current === "playing") {
+      pauseGame();
+    }
+    setShowLevelSelector(true);
+  }, [pauseGame]);
+
+  // Auto-pause cleanly when tab loses focus or visibility
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (
+        document.visibilityState === "hidden" &&
+        statusRef.current === "playing" &&
+        game.current.hasStartedMoving
+      ) {
+        pauseGame();
+      }
+    };
+    const onWindowBlur = () => {
+      if (statusRef.current === "playing" && game.current.hasStartedMoving) {
+        pauseGame();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("blur", onWindowBlur);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("blur", onWindowBlur);
+    };
+  }, [pauseGame]);
 
   // Keyboard navigation
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (showLevelSelectorRef.current) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setShowLevelSelector(false);
+        }
+        return;
+      }
+
       const keys: Record<string, Direction> = {
         ArrowUp: { x: 0, y: -1 },
         w: { x: 0, y: -1 },
@@ -487,7 +778,13 @@ export default function SnakeGame() {
       if (keys[e.key]) {
         e.preventDefault();
         turn(keys[e.key]);
-      } else if (e.key === " " || e.key === "Enter") {
+      } else if (
+        e.key === " " ||
+        e.key === "Enter" ||
+        e.key === "Escape" ||
+        e.key === "p" ||
+        e.key === "P"
+      ) {
         e.preventDefault();
         togglePause();
       } else if (e.key === "m" || e.key === "M") {
@@ -495,7 +792,7 @@ export default function SnakeGame() {
         toggleSound();
       } else if (e.key === "r" || e.key === "R") {
         e.preventDefault();
-        start();
+        start(false);
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         toggleFullscreen();
@@ -504,7 +801,7 @@ export default function SnakeGame() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [turn, togglePause, start]);
+  }, [turn, togglePause, toggleSound, start]);
 
   // TOUCH & SWIPE CONTROLS
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -637,7 +934,7 @@ export default function SnakeGame() {
 
     // Unlock next level & persist
     setLevelProgress((prev) => {
-      const newUnlocked = Math.max(prev.unlockedLevel, Math.min(MAX_LEVELS, lvl.level + 1));
+      const newUnlocked = Math.max(prev.unlockedLevel, lvl.level + 1);
       const currentBest = prev.stars[lvl.level] || 0;
       const newStars = { ...prev.stars, [lvl.level]: Math.max(currentBest, stars) };
       const newBestTimes = {
@@ -648,6 +945,7 @@ export default function SnakeGame() {
       };
 
       try {
+        localStorage.removeItem("snake-active-level-session");
         localStorage.setItem("snake-unlocked-level", String(newUnlocked));
         localStorage.setItem("snake-level-stars", JSON.stringify(newStars));
       } catch {}
@@ -684,6 +982,9 @@ export default function SnakeGame() {
 
       const hitWall =
         nextHead.x < 0 || nextHead.y < 0 || nextHead.x >= cols || nextHead.y >= rows;
+      const hitObstacle = g.obstacles.some(
+        (o) => o.x === nextHead.x && o.y === nextHead.y
+      );
 
       const eatingFood = nextHead.x === g.food.x && nextHead.y === g.food.y;
       const eatingGolden =
@@ -699,7 +1000,8 @@ export default function SnakeGame() {
       );
 
       // GAME OVER
-      if (hitWall || hitSelf) {
+      if (hitWall || hitSelf || hitObstacle) {
+        syncHudStats();
         setStatus("over");
         shakeRef.current = 16;
         try {
@@ -720,15 +1022,27 @@ export default function SnakeGame() {
         .map((b) => ({ ...b, index: b.index + 1 }))
         .filter((b) => b.index < g.snake.length);
 
+      const sessionDiffCfg = sessionRef.current
+        ? DIFFICULTY_CONFIGS[sessionRef.current.difficulty]
+        : DIFFICULTY_CONFIGS.medium;
+
       // APPLE CONSUMPTION
       if (eatingFood) {
-        g.score += 10;
+        const points = sessionDiffCfg.scorePerFood;
+        g.score += points;
         g.applesEaten += 1;
+
+        if (g.score > bestScoreRef.current) {
+          bestScoreRef.current = g.score;
+          try {
+            localStorage.setItem("snake-session-best", String(g.score));
+          } catch {}
+        }
 
         const foodPixelX = (g.food.x + 0.5) * c;
         const foodPixelY = (g.food.y + 0.5) * c;
         spawnJuiceParticles(foodPixelX, foodPixelY, themeRef.current.appleColor, 20);
-        addFloatingText("+10", foodPixelX, foodPixelY - 12, "#fbbf24");
+        addFloatingText(`+${points}`, foodPixelX, foodPixelY - 12, "#fbbf24");
         shakeRef.current = 4;
 
         try {
@@ -736,35 +1050,100 @@ export default function SnakeGame() {
         } catch {}
 
         g.bulges.push({ index: 0, progress: 0 });
-        g.food = generateRandomFood(g.snake);
+        g.food = generateRandomFood(
+          g.snake,
+          g.golden?.active ? g.golden : undefined,
+          g.obstacles
+        );
 
         // Check Levels Victory Condition
         if (g.applesEaten >= currentLevelConfigRef.current.targetApples) {
+          syncHudStats();
           handleLevelComplete();
           return;
         }
 
-        // Golden Apple Spawn (every 5 apples)
-        if (g.applesEaten % 5 === 0 && (!g.golden || !g.golden.active)) {
+        // 1. Progressive speed scaling (level + difficulty aware)
+        const levelSpeedCfg = getLevelSpeedConfig(
+          sessionDiffCfg.id,
+          sessionRef.current?.level ?? currentLevelConfigRef.current.level
+        );
+        const speedTier = Math.floor(g.applesEaten / sessionDiffCfg.speedStepFoods);
+        const nextSpeed = Math.max(
+          levelSpeedCfg.minSpeed,
+          levelSpeedCfg.baseSpeed - speedTier * sessionDiffCfg.speedStepMs
+        );
+        if (nextSpeed < g.currentSpeedMs) {
+          g.currentSpeedMs = nextSpeed;
+          addFloatingText("⚡ SPEED UP!", foodPixelX, foodPixelY - 28, "#38bdf8");
+        }
+
+        // 2. Gradual safe obstacle introduction
+        if (
+          sessionDiffCfg.obstacleStepFoods > 0 &&
+          g.applesEaten % sessionDiffCfg.obstacleStepFoods === 0 &&
+          g.dynamicObstaclesAdded < sessionDiffCfg.maxProgressiveObstacles
+        ) {
+          const newObs = findSafeProgressiveObstacle({
+            cols,
+            rows,
+            snake: g.snake,
+            dir: g.dir,
+            obstacles: g.obstacles,
+            food: g.food,
+            golden: g.golden?.active ? g.golden : null,
+          });
+          if (newObs) {
+            g.obstacles.push(newObs);
+            g.dynamicObstaclesAdded += 1;
+            const obsPx = (newObs.x + 0.5) * c;
+            const obsPy = (newObs.y + 0.5) * c;
+            spawnJuiceParticles(
+              obsPx,
+              obsPy,
+              themeRef.current.obstacleAccent || themeRef.current.accent,
+              12
+            );
+            addFloatingText("🪨 +OBSTACLE", obsPx, obsPy - 12, "#fda4af");
+          }
+        }
+
+        // 3. Occasional Bonus Food
+        if (
+          (!g.golden || !g.golden.active) &&
+          (g.applesEaten % sessionDiffCfg.bonusInterval === 0 ||
+            Math.random() < sessionDiffCfg.bonusChance)
+        ) {
+          const goldenPos = generateRandomFood(g.snake, g.food, g.obstacles);
           g.golden = {
-            x: generateRandomFood(g.snake, g.food).x,
-            y: generateRandomFood(g.snake, g.food).y,
+            x: goldenPos.x,
+            y: goldenPos.y,
             active: true,
-            timeLeft: 9000,
-            maxTime: 9000,
+            timeLeft: sessionDiffCfg.bonusDurationMs,
+            maxTime: sessionDiffCfg.bonusDurationMs,
           };
           try {
             soundFx.playGolden();
           } catch {}
         }
+
+        syncHudStats();
       } else if (eatingGolden) {
-        g.score += 50;
+        const bonusPts = sessionDiffCfg.bonusScore;
+        g.score += bonusPts;
         g.goldenEaten += 1;
+
+        if (g.score > bestScoreRef.current) {
+          bestScoreRef.current = g.score;
+          try {
+            localStorage.setItem("snake-session-best", String(g.score));
+          } catch {}
+        }
 
         const goldPixelX = (g.golden!.x + 0.5) * c;
         const goldPixelY = (g.golden!.y + 0.5) * c;
         spawnGoldenStars(goldPixelX, goldPixelY, 28);
-        addFloatingText("+50 GOLDEN!", goldPixelX, goldPixelY - 12, "#fde047");
+        addFloatingText(`+${bonusPts} BONUS!`, goldPixelX, goldPixelY - 12, "#fde047");
         shakeRef.current = 7;
 
         try {
@@ -773,6 +1152,7 @@ export default function SnakeGame() {
 
         g.bulges.push({ index: 0, progress: 0 });
         g.golden = null;
+        syncHudStats();
       } else {
         g.snake.pop();
       }
@@ -801,19 +1181,8 @@ export default function SnakeGame() {
         ctx.translate(sx, sy);
       }
 
-      // 1. BOARD BACKGROUND (Edge-to-Edge checkered tiles with grass blade highlights)
-      for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-          ctx.fillStyle = (x + y) % 2 === 0 ? theme.boardBg1 : theme.boardBg2;
-          ctx.fillRect(x * c, y * c, c, c);
-
-          // Subtle grass blade details for texture
-          if ((x * 7 + y * 13) % 7 === 0) {
-            ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
-            ctx.fillRect(x * c + c * 0.35, y * c + c * 0.35, c * 0.08, c * 0.28);
-          }
-        }
-      }
+      // 1. BOARD BACKGROUND (Theme-specific environment tiles & ambient details)
+      drawBoardBackground(ctx, cols, rows, c, theme, timeNow);
 
       // Cinematic Vignette border across the expansive field
       const vigGrad = ctx.createRadialGradient(
@@ -828,6 +1197,9 @@ export default function SnakeGame() {
       vigGrad.addColorStop(1, theme.vignette);
       ctx.fillStyle = vigGrad;
       ctx.fillRect(0, 0, width, height);
+
+      // 1.5 MAP OBSTACLES (Theme-specific visual design)
+      drawObstacles(ctx, g.obstacles, c, theme, timeNow);
 
       // 2. GOLDEN APPLE (if active)
       if (g.golden && g.golden.active) {
@@ -1318,6 +1690,44 @@ export default function SnakeGame() {
         ctx.restore();
       }
 
+      // 8. SMOOTH RESUME GRACE COUNTDOWN (3 -> 2 -> 1)
+      if (statusRef.current === "playing" && resumeGraceMsRef.current > 0) {
+        const countNum = Math.ceil(resumeGraceMsRef.current / 400);
+        const head = g.snake[0];
+        const hx = (head.x + g.dir.x * 1.15 + 0.5) * c;
+        const hy = (head.y + g.dir.y * 1.15 + 0.5) * c;
+
+        ctx.save();
+        // Subtle directional arrow ahead of snake head
+        ctx.translate(hx, hy);
+        ctx.rotate(Math.atan2(g.dir.y, g.dir.x));
+        ctx.fillStyle = "rgba(52, 211, 153, 0.85)";
+        ctx.beginPath();
+        ctx.moveTo(c * 0.28, 0);
+        ctx.lineTo(-c * 0.14, -c * 0.18);
+        ctx.lineTo(-c * 0.14, c * 0.18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // Crisp countdown badge
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+        ctx.beginPath();
+        ctx.arc(width / 2, height / 2, Math.max(24, c * 1.15), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = theme.accent;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = `900 ${Math.max(22, Math.round(c * 1.1))}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(countNum), width / 2, height / 2 + 1);
+        ctx.restore();
+      }
+
       ctx.restore();
     }
 
@@ -1329,6 +1739,18 @@ export default function SnakeGame() {
 
       if (shakeRef.current > 0) {
         shakeRef.current = Math.max(0, shakeRef.current - dt * 0.035);
+      }
+
+      // Hold timer & snake ticks during brief resume grace countdown
+      if (statusRef.current === "playing" && resumeGraceMsRef.current > 0) {
+        resumeGraceMsRef.current = Math.max(0, resumeGraceMsRef.current - dt);
+        if (game.current.hasStartedMoving) {
+          game.current.startTime += dt;
+        }
+        accumulator = 0;
+        render(1, now);
+        raf = requestAnimationFrame(gameLoop);
+        return;
       }
 
       // Countdown Timer
@@ -1355,9 +1777,8 @@ export default function SnakeGame() {
         }
       }
 
-      // Speed calculation
-      const lvl = currentLevelConfigRef.current;
-      const interval = Math.max(65, lvl.baseSpeed - game.current.applesEaten * 1.5);
+      // Speed calculation (from current difficulty + progressive speed scaling)
+      const interval = game.current.currentSpeedMs;
 
       if (statusRef.current === "playing") {
         accumulator += dt;
@@ -1378,9 +1799,12 @@ export default function SnakeGame() {
 
     raf = requestAnimationFrame(gameLoop);
     return () => cancelAnimationFrame(raf);
-  }, [generateRandomFood, handleLevelComplete]);
+  }, [generateRandomFood, handleLevelComplete, syncHudStats]);
 
-  const activeTheme = THEMES[activeThemeId] || THEMES.garden;
+  const activeTheme = THEMES[activeThemeId] || THEMES.jungle;
+  const activeDifficulty = sessionConfig
+    ? DIFFICULTY_CONFIGS[sessionConfig.difficulty]
+    : DIFFICULTY_CONFIGS.medium;
   const isHudVisible = !isFullscreen || showFullscreenHud || status !== "playing";
   const totalStarsCount = Object.values(levelProgress.stars).reduce((sum, val) => sum + val, 0);
 
@@ -1391,14 +1815,7 @@ export default function SnakeGame() {
         isFullscreen ? "p-0 justify-center relative" : "p-1.5 sm:p-3 justify-between"
       }`}
       style={{
-        background:
-          activeThemeId === "desert"
-            ? `radial-gradient(circle at 50% 25%, #2a1c0d 0%, #0d0905 100%)`
-            : activeThemeId === "magma" || activeThemeId === "lava"
-            ? `radial-gradient(circle at 50% 25%, #2b110e 0%, #0a0404 100%)`
-            : activeThemeId === "cyber" || activeThemeId === "neon" || activeThemeId === "midnight"
-            ? `radial-gradient(circle at 50% 25%, #0c182b 0%, #030712 100%)`
-            : `radial-gradient(circle at 50% 25%, #152416 0%, #070c08 100%)`,
+        background: getMainBackgroundGradient(activeThemeId),
       }}
     >
       {/* FULLSCREEN TOP HOVER TRIGGER ZONE */}
@@ -1436,7 +1853,7 @@ export default function SnakeGame() {
         >
           <span className="text-[10px] text-emerald-400">▼</span>
           <span className="text-[11px] tracking-wide">
-            {`Lvl ${currentLevelNum}`}
+            {`Lvl ${currentLevelNum} • ${activeTheme.icon} ${activeDifficulty.label}`}
           </span>
         </div>
       )}
@@ -1444,7 +1861,9 @@ export default function SnakeGame() {
       {/* --- TOP COMPACT MODULAR HUD BAR --- */}
       <GameHud
         status={status}
-        applesEaten={game.current.applesEaten}
+        sessionTheme={activeTheme}
+        sessionDifficulty={activeDifficulty}
+        applesEaten={hudStats.applesEaten}
         targetApples={currentLevelConfig.targetApples}
         currentLevel={currentLevelNum}
         totalStars={totalStarsCount}
@@ -1458,7 +1877,8 @@ export default function SnakeGame() {
         onToggleControlMode={toggleControlMode}
         onToggleFullscreen={toggleFullscreen}
         onTogglePause={togglePause}
-        onOpenLevelSelector={() => setShowLevelSelector(true)}
+        onRestart={() => start(false)}
+        onOpenLevelSelector={openLevelSelector}
         onMouseEnter={() => {
           if (isFullscreen) {
             setShowFullscreenHud(true);
@@ -1508,20 +1928,28 @@ export default function SnakeGame() {
           {/* OVERLAY: READY / START SCREEN */}
           {status === "ready" && (
             <ReadyOverlay
+              session={sessionConfig}
+              sessionTheme={activeTheme}
+              sessionDifficulty={activeDifficulty}
               level={currentLevelConfig}
               progress={levelProgress}
-              onOpenLevelSelector={() => setShowLevelSelector(true)}
-              onStart={start}
+              onOpenLevelSelector={openLevelSelector}
+              onStart={() => start(false)}
             />
           )}
 
           {/* OVERLAY: PAUSED SCREEN */}
           {status === "paused" && (
             <PauseOverlay
+              session={sessionConfig}
+              sessionTheme={activeTheme}
+              sessionDifficulty={activeDifficulty}
               level={currentLevelConfig}
+              applesEaten={hudStats.applesEaten}
+              timeLeft={timeLeft}
               onResume={togglePause}
-              onRestart={start}
-              onOpenLevelSelector={() => setShowLevelSelector(true)}
+              onRestart={() => start(false)}
+              onOpenLevelSelector={openLevelSelector}
             />
           )}
 
@@ -1531,23 +1959,26 @@ export default function SnakeGame() {
               level={currentLevelConfig}
               starsEarned={earnedStars}
               timeTaken={levelTimeTaken}
-              hasNextLevel={currentLevelNum < MAX_LEVELS}
+              hasNextLevel={true}
               onNextLevel={nextLevel}
-              onReplay={start}
-              onOpenLevelSelector={() => setShowLevelSelector(true)}
+              onReplay={() => start(true)}
+              onOpenLevelSelector={openLevelSelector}
             />
           )}
 
           {/* OVERLAY: GAME OVER / TIME UP SCREEN */}
           {status === "over" && (
             <GameOverModal
+              session={sessionConfig}
+              sessionTheme={activeTheme}
+              sessionDifficulty={activeDifficulty}
               level={currentLevelConfig}
               isTimeUp={isTimeUp}
-              applesEaten={game.current.applesEaten}
+              applesEaten={hudStats.applesEaten}
               targetApples={currentLevelConfig.targetApples}
-              snakeLength={game.current.snake.length}
-              onRetry={start}
-              onOpenLevelSelector={() => setShowLevelSelector(true)}
+              snakeLength={hudStats.snakeLength}
+              onRetry={() => start(false)}
+              onOpenLevelSelector={openLevelSelector}
             />
           )}
         </div>
@@ -1555,7 +1986,7 @@ export default function SnakeGame() {
 
       {/* --- ERGONOMIC MOBILE TOUCH D-PAD --- */}
       {isMobileDevice && controlMode === "dpad" && (
-        <DPadControls onTurn={turn} onStart={start} />
+        <DPadControls onTurn={turn} onStart={() => start(false)} />
       )}
 
       {/* --- LEVEL SELECTION MAP MODAL --- */}
@@ -1572,7 +2003,7 @@ export default function SnakeGame() {
       {!isMobileDevice && !isFullscreen && (
         <div className="w-full max-w-4xl flex items-center justify-between px-2 pt-1 text-xs text-white/50 shrink-0">
           <div>
-            Slither: <span className="text-white/80 font-bold">WASD / Arrow Keys</span> • Pause: <span className="text-white/80 font-bold">Space</span> • Fullscreen: <span className="text-white/80 font-bold">F</span> • Mute: <span className="text-white/80 font-bold">M</span>
+            Slither: <span className="text-white/80 font-bold">WASD / Arrow Keys</span> • Pause: <span className="text-white/80 font-bold">Space / Esc</span> • Restart: <span className="text-white/80 font-bold">R</span> • Fullscreen: <span className="text-white/80 font-bold">F</span> • Mute: <span className="text-white/80 font-bold">M</span>
           </div>
           <div>Serpent Pro v2.5 • Levels & Challenge Mode</div>
         </div>
