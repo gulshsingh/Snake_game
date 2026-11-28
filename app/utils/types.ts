@@ -23,6 +23,11 @@ export interface Obstacle extends Point {
   spawnedAt?: number;
 }
 
+export interface PendingObstacle extends Point {
+  variant?: number;
+  remainingMs: number;
+}
+
 export interface DifficultyConfig {
   id: DifficultyLevel;
   label: string;

@@ -332,6 +332,14 @@ export function useSnakeControls({
         e.key === "p" ||
         e.key === "P"
       ) {
+        if (
+          (e.key === " " || e.key === "Enter") &&
+          statusRef.current !== "playing" &&
+          e.target instanceof HTMLElement &&
+          e.target.closest("button, a, [role='button']")
+        ) {
+          return;
+        }
         e.preventDefault();
         togglePause();
       } else if (e.key === "m" || e.key === "M") {

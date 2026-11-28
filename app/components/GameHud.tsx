@@ -96,6 +96,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.currentTarget.blur();
             onOpenLevelSelector();
           }}
           className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-[11px] sm:text-xs font-bold text-amber-300 cursor-pointer touch-btn active:scale-95"
@@ -161,6 +162,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.currentTarget.blur();
             onToggleSound();
           }}
           className="p-1 sm:p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 touch-btn text-xs sm:text-sm cursor-pointer"
@@ -175,6 +177,7 @@ export const GameHud: React.FC<GameHudProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              e.currentTarget.blur();
               onToggleControlMode();
             }}
             className={`p-1 sm:p-2 rounded-lg border touch-btn text-[11px] sm:text-xs font-bold flex items-center gap-0.5 cursor-pointer ${
@@ -193,6 +196,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.currentTarget.blur();
             onToggleFullscreen();
           }}
           className="p-1 sm:p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 touch-btn text-xs sm:text-sm font-bold text-white/80 cursor-pointer"
@@ -207,6 +211,7 @@ export const GameHud: React.FC<GameHudProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              e.currentTarget.blur();
               onRestart();
             }}
             className="p-1 sm:p-2 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 touch-btn text-xs sm:text-sm text-white/85 cursor-pointer"
@@ -221,6 +226,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.currentTarget.blur();
             onTogglePause();
           }}
           className="p-1 sm:p-2 px-2 sm:px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm border border-emerald-400/30 touch-btn shadow-md cursor-pointer active:scale-95"

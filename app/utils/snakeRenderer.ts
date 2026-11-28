@@ -125,19 +125,18 @@ function drawArmorBody(
   ctx: CanvasRenderingContext2D, nodes: RenderNode[], c: number,
   timeNow: number, isGoldenAura: boolean, fastWag: boolean
 ) {
-  ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-  if ("filter" in ctx) {
-    try {
-      ctx.filter = `blur(${Math.max(2, c * 0.08)}px)`;
-    } catch {}
-  }
+  ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
   nodes.forEach((node) => {
     ctx.beginPath();
-    ctx.ellipse(node.x, node.y + c * 0.16, node.radius * 1.05, node.radius * 0.85, 0, 0, Math.PI * 2);
+    ctx.ellipse(node.x, node.y + c * 0.17, node.radius * 1.12, node.radius * 0.9, 0, 0, Math.PI * 2);
     ctx.fill();
   });
-  ctx.restore();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+  nodes.forEach((node) => {
+    ctx.beginPath();
+    ctx.ellipse(node.x, node.y + c * 0.14, node.radius * 0.96, node.radius * 0.76, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
 
   drawTail(ctx, nodes, c, timeNow, fastWag || isGoldenAura);
 

@@ -1,4 +1,4 @@
-import { Obstacle, ThemeConfig } from "./types";
+import { Obstacle, PendingObstacle, ThemeConfig } from "./types";
 
 let cachedBoardCanvas: HTMLCanvasElement | null = null;
 let cachedBoardKey = "";
@@ -7,19 +7,23 @@ function buildStaticBoardCanvas(
   cols: number,
   rows: number,
   c: number,
-  theme: ThemeConfig
+  theme: ThemeConfig,
+  dpr: number
 ): HTMLCanvasElement | null {
   if (typeof document === "undefined") return null;
   const width = cols * c;
   const height = rows * c;
+  const backingW = Math.round(width * dpr);
+  const backingH = Math.round(height * dpr);
   if (!cachedBoardCanvas) {
     cachedBoardCanvas = document.createElement("canvas");
   }
-  if (cachedBoardCanvas.width !== width) cachedBoardCanvas.width = width;
-  if (cachedBoardCanvas.height !== height) cachedBoardCanvas.height = height;
+  if (cachedBoardCanvas.width !== backingW) cachedBoardCanvas.width = backingW;
+  if (cachedBoardCanvas.height !== backingH) cachedBoardCanvas.height = backingH;
 
   const off = cachedBoardCanvas.getContext("2d");
   if (!off) return null;
+  off.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
@@ -120,16 +124,17 @@ export function drawBoardBackground(
   rows: number,
   c: number,
   theme: ThemeConfig,
-  timeNow: number
+  timeNow: number,
+  dpr = 1
 ) {
-  const key = `${cols}x${rows}x${c}:${theme.id}:${theme.vignette}`;
+  const key = `${cols}x${rows}x${c}@${dpr}:${theme.id}:${theme.vignette}`;
   if (key !== cachedBoardKey || !cachedBoardCanvas) {
-    buildStaticBoardCanvas(cols, rows, c, theme);
+    buildStaticBoardCanvas(cols, rows, c, theme, dpr);
     cachedBoardKey = key;
   }
 
   if (cachedBoardCanvas) {
-    ctx.drawImage(cachedBoardCanvas, 0, 0);
+    ctx.drawImage(cachedBoardCanvas, 0, 0, cols * c, rows * c);
   }
 
   // Only iterate animated details for themes that actually have frame-by-frame effects
@@ -366,6 +371,49 @@ export function drawObstacles(
       ctx.fill();
     }
 
+    ctx.restore();
+  }
+}
+
+/**
+ * Draws pulsing telegraph outlines on tiles where progressive obstacles are about to solidify.
+ */
+export function drawPendingObstacles(
+  ctx: CanvasRenderingContext2D,
+  pending: PendingObstacle[],
+  c: number,
+  theme: ThemeConfig,
+  timeNow: number
+) {
+  if (!pending.length) return;
+  const pulse = 0.45 + 0.45 * Math.sin(timeNow * 0.018);
+
+  for (const p of pending) {
+    const pad = c * 0.1;
+    const size = c - pad * 2;
+    const x0 = p.x * c + pad;
+    const y0 = p.y * c + pad;
+
+    ctx.save();
+    ctx.fillStyle = `rgba(244, 63, 94, ${(0.15 + 0.15 * pulse).toFixed(2)})`;
+    ctx.beginPath();
+    ctx.roundRect(x0, y0, size, size, c * 0.18);
+    ctx.fill();
+
+    ctx.strokeStyle = theme.obstacleAccent || "#fb7185";
+    ctx.globalAlpha = 0.55 + 0.4 * pulse;
+    ctx.lineWidth = Math.max(1.5, c * 0.06);
+    ctx.setLineDash([c * 0.16, c * 0.12]);
+    ctx.beginPath();
+    ctx.roundRect(x0, y0, size, size, c * 0.18);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#fef08a";
+    ctx.font = `900 ${Math.max(10, Math.round(c * 0.48))}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("!", (p.x + 0.5) * c, (p.y + 0.52) * c);
     ctx.restore();
   }
 }

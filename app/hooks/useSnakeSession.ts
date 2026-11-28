@@ -129,6 +129,7 @@ export function useSnakeSession({
         food: { ...session.initialFood },
         golden: null,
         obstacles: session.obstacles.map((o) => ({ ...o })),
+        pendingObstacles: [],
         score: 0,
         applesEaten: 0,
         goldenEaten: 0,
@@ -306,7 +307,14 @@ export function useSnakeSession({
     setStatus("level_clear");
     try {
       soundFx.playLevelComplete();
-      soundFx.playStar(stars);
+      soundFx.haptic([20, 40, 25]);
+      for (let i = 1; i <= stars; i++) {
+        setTimeout(() => {
+          try {
+            soundFx.playStar(i);
+          } catch {}
+        }, i * 160);
+      }
     } catch {}
 
     setLevelProgress((prev) => {

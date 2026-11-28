@@ -173,11 +173,10 @@ function drawFrontHead(
   ctx.lineTo(-0.76 * r, -0.12 * r);
   ctx.bezierCurveTo(-0.76 * r, -0.52 * r, -0.55 * r, -0.72 * r, 0, -0.7 * r);
   ctx.closePath();
-  ctx.save();
-  ctx.shadowColor = "rgba(58, 22, 110, 0.28)";
-  ctx.shadowBlur = Math.max(2, r * 0.12);
+  ctx.strokeStyle = "rgba(58, 22, 110, 0.22)";
+  ctx.lineWidth = Math.max(2, r * 0.09);
+  ctx.stroke();
   fillStroke(ctx, radial(ctx, 0, 0, 0.95 * r, HEAD_COLORS.skinLight, HEAD_COLORS.skin, HEAD_COLORS.skinDark), "rgba(154, 83, 64, 0.65)", Math.max(0.85, r * 0.028));
-  ctx.restore();
 
   [-1, 1].forEach((side) => drawEarAt(ctx, side * 0.72 * r, -0.58 * r, r));
 
@@ -273,11 +272,10 @@ function drawSideHead(
   ctx.bezierCurveTo(0.46 * r, 0.78 * r, 0.04 * r, 0.8 * r, -0.26 * r, 0.64 * r);
   ctx.bezierCurveTo(-0.48 * r, 0.44 * r, -0.5 * r, -0.26 * r, -0.34 * r, -0.58 * r);
   ctx.closePath();
-  ctx.save();
-  ctx.shadowColor = "rgba(58, 22, 110, 0.26)";
-  ctx.shadowBlur = Math.max(1.8, r * 0.1);
+  ctx.strokeStyle = "rgba(58, 22, 110, 0.22)";
+  ctx.lineWidth = Math.max(2, r * 0.085);
+  ctx.stroke();
   fillStroke(ctx, radial(ctx, 0.18 * r, -0.04 * r, 0.92 * r, HEAD_COLORS.skinLight, HEAD_COLORS.skin, HEAD_COLORS.skinDark), "rgba(154, 83, 64, 0.65)", Math.max(0.85, r * 0.028));
-  ctx.restore();
 
   ctx.fillStyle = "rgba(255, 232, 185, 0.72)";
   ctx.beginPath();

@@ -42,6 +42,7 @@ export function useViewportCanvas({
     height: 640,
     cols: 20,
     rows: 20,
+    dpr: 1,
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showFullscreenHud, setShowFullscreenHud] = useState(false);
@@ -80,10 +81,11 @@ export function useViewportCanvas({
     const rows = Math.max(12, Math.floor(availableH / targetCell));
 
     const c = Math.min(Math.floor(availableW / cols), Math.floor(availableH / rows));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
     cellRef.current = c;
     gridSizeRef.current = { cols, rows };
 
-    setCanvasDim({ width: cols * c, height: rows * c, cols, rows });
+    setCanvasDim({ width: cols * c, height: rows * c, cols, rows, dpr });
 
     const g = gameRef.current;
     if (statusRef.current === "ready" && sessionRef.current) {

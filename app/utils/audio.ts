@@ -272,6 +272,35 @@ export class SoundController {
       osc.stop(now + 0.3);
     } catch {}
   }
+
+  // Subtle low-time countdown tick
+  public playTick() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(980, now);
+      gain.gain.setValueAtTime(0.05, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.045);
+    } catch {}
+  }
+
+  // Gentle tactile haptic feedback on supported mobile devices
+  public haptic(pattern: number | number[]) {
+    if (this.isMuted || typeof navigator === "undefined") return;
+    try {
+      navigator.vibrate?.(pattern);
+    } catch {}
+  }
 }
 
 export const soundFx = new SoundController();
