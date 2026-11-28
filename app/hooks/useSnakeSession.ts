@@ -138,6 +138,9 @@ export function useSnakeSession({
         bulges: [],
         hasStartedMoving: false,
         goldenAuraUntil: 0,
+        goldenAuraMs: 0,
+        comboCount: 0,
+        comboTimerMs: 0,
       };
       particles.current = [];
       floatingTexts.current = [];
@@ -228,6 +231,13 @@ export function useSnakeSession({
         if (savedStars) {
           setLevelProgress((prev) => ({ ...prev, stars: JSON.parse(savedStars) }));
         }
+        const savedBestTimes = localStorage.getItem("snake-level-best-times");
+        if (savedBestTimes) {
+          const parsedTimes = JSON.parse(savedBestTimes) as Record<number, number>;
+          if (parsedTimes && typeof parsedTimes === "object") {
+            setLevelProgress((prev) => ({ ...prev, bestTimes: parsedTimes }));
+          }
+        }
         const savedLastMap = localStorage.getItem("snake-last-map") as MapThemeId | null;
         if (savedLastMap) lastMapThemeRef.current = savedLastMap;
 
@@ -312,6 +322,7 @@ export function useSnakeSession({
         localStorage.removeItem("snake-active-level-session");
         localStorage.setItem("snake-unlocked-level", String(newUnlocked));
         localStorage.setItem("snake-level-stars", JSON.stringify(newStars));
+        localStorage.setItem("snake-level-best-times", JSON.stringify(newBestTimes));
       } catch {}
       return { ...prev, unlockedLevel: newUnlocked, stars: newStars, bestTimes: newBestTimes };
     });

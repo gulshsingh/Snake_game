@@ -260,10 +260,12 @@ export function drawParticlesAndTexts(
     ctx.save();
     ctx.font = `900 ${Math.round(c * 0.7)}px sans-serif`;
     ctx.textAlign = "center";
-    ctx.shadowColor = "rgba(0,0,0,0.8)";
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = ft.color;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.lineWidth = Math.max(2.5, c * 0.14);
     ctx.globalAlpha = ft.alpha;
+    ctx.strokeText(ft.text, ft.x, ft.y);
+    ctx.fillStyle = ft.color;
     ctx.fillText(ft.text, ft.x, ft.y);
     ctx.restore();
   }

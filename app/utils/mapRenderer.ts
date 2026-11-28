@@ -1,7 +1,118 @@
 import { Obstacle, ThemeConfig } from "./types";
 
+let cachedBoardCanvas: HTMLCanvasElement | null = null;
+let cachedBoardKey = "";
+
+function buildStaticBoardCanvas(
+  cols: number,
+  rows: number,
+  c: number,
+  theme: ThemeConfig
+): HTMLCanvasElement | null {
+  if (typeof document === "undefined") return null;
+  const width = cols * c;
+  const height = rows * c;
+  if (!cachedBoardCanvas) {
+    cachedBoardCanvas = document.createElement("canvas");
+  }
+  if (cachedBoardCanvas.width !== width) cachedBoardCanvas.width = width;
+  if (cachedBoardCanvas.height !== height) cachedBoardCanvas.height = height;
+
+  const off = cachedBoardCanvas.getContext("2d");
+  if (!off) return null;
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      off.fillStyle = (x + y) % 2 === 0 ? theme.boardBg1 : theme.boardBg2;
+      off.fillRect(x * c, y * c, c, c);
+
+      const hash = (x * 31 + y * 17 + x * y * 7) % 29;
+      const px = x * c;
+      const py = y * c;
+
+      switch (theme.id) {
+        case "jungle": {
+          if (hash === 0 || hash === 11) {
+            off.fillStyle = "rgba(134, 239, 172, 0.08)";
+            off.beginPath();
+            off.ellipse(px + c * 0.35, py + c * 0.45, c * 0.16, c * 0.07, -0.5, 0, Math.PI * 2);
+            off.fill();
+          } else if (hash === 5) {
+            off.fillStyle = "rgba(255, 255, 255, 0.04)";
+            off.fillRect(px + c * 0.35, py + c * 0.35, c * 0.08, c * 0.28);
+          }
+          break;
+        }
+        case "desert": {
+          if (hash % 7 === 0) {
+            off.strokeStyle = "rgba(254, 243, 199, 0.08)";
+            off.lineWidth = Math.max(1, c * 0.04);
+            off.beginPath();
+            off.moveTo(px + c * 0.15, py + c * 0.55);
+            off.quadraticCurveTo(px + c * 0.5, py + c * 0.38, px + c * 0.85, py + c * 0.55);
+            off.stroke();
+          }
+          break;
+        }
+        case "ice": {
+          if (hash === 2 || hash === 14) {
+            off.strokeStyle = "rgba(224, 242, 254, 0.14)";
+            off.lineWidth = Math.max(1, c * 0.04);
+            off.beginPath();
+            off.moveTo(px + c * 0.25, py + c * 0.25);
+            off.lineTo(px + c * 0.65, py + c * 0.6);
+            off.lineTo(px + c * 0.78, py + c * 0.45);
+            off.stroke();
+          } else if (hash === 9) {
+            off.fillStyle = "rgba(255, 255, 255, 0.18)";
+            off.beginPath();
+            off.arc(px + c * 0.5, py + c * 0.5, c * 0.05, 0, Math.PI * 2);
+            off.fill();
+          }
+          break;
+        }
+        case "ocean": {
+          if (hash === 10) {
+            off.fillStyle = "rgba(204, 251, 241, 0.13)";
+            off.beginPath();
+            off.arc(px + c * 0.65, py + c * 0.35, c * 0.05, 0, Math.PI * 2);
+            off.fill();
+          }
+          break;
+        }
+        case "space":
+        case "lava":
+          break;
+        default: {
+          if ((x * 7 + y * 13) % 7 === 0) {
+            off.fillStyle = "rgba(255, 255, 255, 0.04)";
+            off.fillRect(px + c * 0.35, py + c * 0.35, c * 0.08, c * 0.28);
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  // Bake radial vignette onto the cached board
+  const vigGrad = off.createRadialGradient(
+    width / 2,
+    height / 2,
+    Math.min(width, height) * 0.42,
+    width / 2,
+    height / 2,
+    Math.max(width, height) * 0.72
+  );
+  vigGrad.addColorStop(0, "rgba(0,0,0,0)");
+  vigGrad.addColorStop(1, theme.vignette);
+  off.fillStyle = vigGrad;
+  off.fillRect(0, 0, width, height);
+
+  return cachedBoardCanvas;
+}
+
 /**
- * Draws theme-specific tile background details (leaves, dunes, frost, stars, fissures, caustics).
+ * Draws cached theme-specific tile background + radial vignette, plus lightweight animated accents.
  */
 export function drawBoardBackground(
   ctx: CanvasRenderingContext2D,
@@ -11,108 +122,55 @@ export function drawBoardBackground(
   theme: ThemeConfig,
   timeNow: number
 ) {
+  const key = `${cols}x${rows}x${c}:${theme.id}:${theme.vignette}`;
+  if (key !== cachedBoardKey || !cachedBoardCanvas) {
+    buildStaticBoardCanvas(cols, rows, c, theme);
+    cachedBoardKey = key;
+  }
+
+  if (cachedBoardCanvas) {
+    ctx.drawImage(cachedBoardCanvas, 0, 0);
+  }
+
+  // Only iterate animated details for themes that actually have frame-by-frame effects
+  if (theme.id !== "space" && theme.id !== "lava" && theme.id !== "ocean") {
+    return;
+  }
+
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      ctx.fillStyle = (x + y) % 2 === 0 ? theme.boardBg1 : theme.boardBg2;
-      ctx.fillRect(x * c, y * c, c, c);
-
       const hash = (x * 31 + y * 17 + x * y * 7) % 29;
       const px = x * c;
       const py = y * c;
 
-      switch (theme.id) {
-        case "jungle": {
-          if (hash === 0 || hash === 11) {
-            ctx.fillStyle = "rgba(134, 239, 172, 0.08)";
-            ctx.beginPath();
-            ctx.ellipse(px + c * 0.35, py + c * 0.45, c * 0.16, c * 0.07, -0.5, 0, Math.PI * 2);
-            ctx.fill();
-          } else if (hash === 5) {
-            ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
-            ctx.fillRect(px + c * 0.35, py + c * 0.35, c * 0.08, c * 0.28);
-          }
-          break;
-        }
-        case "desert": {
-          if (hash % 7 === 0) {
-            ctx.strokeStyle = "rgba(254, 243, 199, 0.08)";
-            ctx.lineWidth = Math.max(1, c * 0.04);
-            ctx.beginPath();
-            ctx.moveTo(px + c * 0.15, py + c * 0.55);
-            ctx.quadraticCurveTo(px + c * 0.5, py + c * 0.38, px + c * 0.85, py + c * 0.55);
-            ctx.stroke();
-          }
-          break;
-        }
-        case "ice": {
-          if (hash === 2 || hash === 14) {
-            ctx.strokeStyle = "rgba(224, 242, 254, 0.14)";
-            ctx.lineWidth = Math.max(1, c * 0.04);
-            ctx.beginPath();
-            ctx.moveTo(px + c * 0.25, py + c * 0.25);
-            ctx.lineTo(px + c * 0.65, py + c * 0.6);
-            ctx.lineTo(px + c * 0.78, py + c * 0.45);
-            ctx.stroke();
-          } else if (hash === 9) {
-            ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
-            ctx.beginPath();
-            ctx.arc(px + c * 0.5, py + c * 0.5, c * 0.05, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          break;
-        }
-        case "space": {
-          if (hash === 1 || hash === 8 || hash === 19) {
-            const twinkle = 0.25 + 0.25 * Math.sin(timeNow * 0.003 + hash + x);
-            ctx.fillStyle = `rgba(224, 231, 255, ${twinkle.toFixed(2)})`;
-            ctx.beginPath();
-            ctx.arc(
-              px + c * (0.25 + (hash % 5) * 0.12),
-              py + c * (0.3 + ((hash * 3) % 5) * 0.1),
-              Math.max(1, c * 0.045),
-              0,
-              Math.PI * 2
-            );
-            ctx.fill();
-          }
-          break;
-        }
-        case "lava": {
-          if (hash === 3 || hash === 17) {
-            const glow = 0.14 + 0.08 * Math.sin(timeNow * 0.004 + y);
-            ctx.strokeStyle = `rgba(249, 115, 22, ${glow.toFixed(2)})`;
-            ctx.lineWidth = Math.max(1, c * 0.05);
-            ctx.beginPath();
-            ctx.moveTo(px + c * 0.2, py + c * 0.75);
-            ctx.lineTo(px + c * 0.48, py + c * 0.45);
-            ctx.lineTo(px + c * 0.75, py + c * 0.25);
-            ctx.stroke();
-          }
-          break;
-        }
-        case "ocean": {
-          if (hash === 4 || hash === 15) {
-            const wave = Math.sin(timeNow * 0.003 + x * 0.6) * c * 0.04;
-            ctx.strokeStyle = "rgba(153, 246, 228, 0.1)";
-            ctx.lineWidth = Math.max(1, c * 0.04);
-            ctx.beginPath();
-            ctx.arc(px + c * 0.5, py + c * 0.5 + wave, c * 0.18, 0.2, Math.PI - 0.2);
-            ctx.stroke();
-          } else if (hash === 10) {
-            ctx.fillStyle = "rgba(204, 251, 241, 0.13)";
-            ctx.beginPath();
-            ctx.arc(px + c * 0.65, py + c * 0.35, c * 0.05, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          break;
-        }
-        default: {
-          if ((x * 7 + y * 13) % 7 === 0) {
-            ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
-            ctx.fillRect(px + c * 0.35, py + c * 0.35, c * 0.08, c * 0.28);
-          }
-          break;
-        }
+      if (theme.id === "space" && (hash === 1 || hash === 8 || hash === 19)) {
+        const twinkle = 0.25 + 0.25 * Math.sin(timeNow * 0.003 + hash + x);
+        ctx.fillStyle = `rgba(224, 231, 255, ${twinkle.toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(
+          px + c * (0.25 + (hash % 5) * 0.12),
+          py + c * (0.3 + ((hash * 3) % 5) * 0.1),
+          Math.max(1, c * 0.045),
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      } else if (theme.id === "lava" && (hash === 3 || hash === 17)) {
+        const glow = 0.14 + 0.08 * Math.sin(timeNow * 0.004 + y);
+        ctx.strokeStyle = `rgba(249, 115, 22, ${glow.toFixed(2)})`;
+        ctx.lineWidth = Math.max(1, c * 0.05);
+        ctx.beginPath();
+        ctx.moveTo(px + c * 0.2, py + c * 0.75);
+        ctx.lineTo(px + c * 0.48, py + c * 0.45);
+        ctx.lineTo(px + c * 0.75, py + c * 0.25);
+        ctx.stroke();
+      } else if (theme.id === "ocean" && (hash === 4 || hash === 15)) {
+        const wave = Math.sin(timeNow * 0.003 + x * 0.6) * c * 0.04;
+        ctx.strokeStyle = "rgba(153, 246, 228, 0.1)";
+        ctx.lineWidth = Math.max(1, c * 0.04);
+        ctx.beginPath();
+        ctx.arc(px + c * 0.5, py + c * 0.5 + wave, c * 0.18, 0.2, Math.PI - 0.2);
+        ctx.stroke();
       }
     }
   }

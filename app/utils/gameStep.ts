@@ -41,6 +41,24 @@ export interface SnakeGameState {
   bulges: { index: number; progress: number }[];
   hasStartedMoving: boolean;
   goldenAuraUntil?: number;
+  goldenAuraMs?: number;
+  comboCount?: number;
+  comboTimerMs?: number;
+}
+
+export function adjustGameTimersForPause(
+  g: SnakeGameState,
+  pauseDurationMs: number
+): void {
+  if (pauseDurationMs <= 0) return;
+  if (g.hasStartedMoving) {
+    g.startTime += pauseDurationMs;
+  }
+  for (const obs of g.obstacles) {
+    if (obs.spawnedAt) {
+      obs.spawnedAt += pauseDurationMs;
+    }
+  }
 }
 
 export function getInitialGameState(cols = 20, rows = 20): SnakeGameState {
@@ -69,6 +87,9 @@ export function getInitialGameState(cols = 20, rows = 20): SnakeGameState {
     bulges: [],
     hasStartedMoving: false,
     goldenAuraUntil: 0,
+    goldenAuraMs: 0,
+    comboCount: 0,
+    comboTimerMs: 0,
   };
 }
 
@@ -158,7 +179,13 @@ export function executeGameStep(ctx: StepContext): void {
   );
 
   if (eatingFood) {
-    g.score += diffCfg.scorePerFood;
+    const nextCombo = (g.comboTimerMs ?? 0) > 0 ? Math.min(5, (g.comboCount ?? 0) + 1) : 1;
+    g.comboCount = nextCombo;
+    g.comboTimerMs = 3500;
+    const comboBonus = nextCombo > 1 ? Math.round(diffCfg.scorePerFood * 0.25 * (nextCombo - 1)) : 0;
+    const pointsEarned = diffCfg.scorePerFood + comboBonus;
+
+    g.score += pointsEarned;
     g.applesEaten += 1;
 
     if (g.score > bestScoreRef.current) {
@@ -171,11 +198,18 @@ export function executeGameStep(ctx: StepContext): void {
     const foodPx = (g.food.x + 0.5) * c;
     const foodPy = (g.food.y + 0.5) * c;
     pushJuiceParticles(particles, foodPx, foodPy, theme.appleColor, 20);
-    pushFloatingText(floatingTexts, `+${diffCfg.scorePerFood}`, foodPx, foodPy - 12, "#fbbf24");
+    const scoreLabel = nextCombo > 1 ? `+${pointsEarned} x${nextCombo}!` : `+${pointsEarned}`;
+    pushFloatingText(
+      floatingTexts,
+      scoreLabel,
+      foodPx,
+      foodPy - 12,
+      nextCombo >= 3 ? "#fde047" : "#fbbf24"
+    );
     shakeRef.current = 4;
 
     try {
-      soundFx.playEat(Math.min(5, Math.floor(g.score / 30) + 1));
+      soundFx.playEat(nextCombo);
     } catch {}
 
     g.bulges.push({ index: 0, progress: 0 });
@@ -254,6 +288,7 @@ export function executeGameStep(ctx: StepContext): void {
     g.score += diffCfg.bonusScore;
     g.goldenEaten += 1;
     g.goldenAuraUntil = Date.now() + 5000;
+    g.goldenAuraMs = 5000;
 
     if (g.score > bestScoreRef.current) {
       bestScoreRef.current = g.score;

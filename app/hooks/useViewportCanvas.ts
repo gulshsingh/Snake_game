@@ -93,6 +93,7 @@ export function useViewportCanvas({
         cols,
         rows,
         difficulty: sessionRef.current.difficulty,
+        difficultyLayer: sessionRef.current.difficultyLayer,
         snake: initialSnake,
         dir: initialDir,
         level: sessionRef.current.level,
@@ -235,7 +236,8 @@ export function useViewportCanvas({
     const t = e.touches[0];
     const dx = t.clientX - touchStartRef.current.x;
     const dy = t.clientY - touchStartRef.current.y;
-    if (Math.hypot(dx, dy) > 16) {
+    const threshold = Math.max(18, cellRef.current * 0.7);
+    if (Math.hypot(dx, dy) > threshold) {
       onTurn(Math.abs(dx) > Math.abs(dy) ? { x: dx > 0 ? 1 : -1, y: 0 } : { x: 0, y: dy > 0 ? 1 : -1 });
       touchStartRef.current = { x: t.clientX, y: t.clientY };
     }

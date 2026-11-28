@@ -119,6 +119,8 @@ export default function SnakeGame() {
         sessionDifficulty={activeDifficulty}
         applesEaten={session.hudStats.applesEaten}
         targetApples={session.currentLevelConfig.targetApples}
+        score={session.hudStats.score}
+        bestScore={session.hudStats.bestScore}
         currentLevel={session.currentLevelNum}
         totalStars={totalStarsCount}
         timeLeft={session.timeLeft}
@@ -199,6 +201,8 @@ export default function SnakeGame() {
               level={session.currentLevelConfig}
               starsEarned={session.earnedStars}
               timeTaken={session.levelTimeTaken}
+              score={session.hudStats.score}
+              bestScore={session.hudStats.bestScore}
               hasNextLevel={true}
               onNextLevel={session.nextLevel}
               onReplay={() => session.start(true)}
@@ -216,6 +220,8 @@ export default function SnakeGame() {
               applesEaten={session.hudStats.applesEaten}
               targetApples={session.currentLevelConfig.targetApples}
               snakeLength={session.hudStats.snakeLength}
+              score={session.hudStats.score}
+              bestScore={session.hudStats.bestScore}
               onRetry={() => session.start(false)}
               onOpenLevelSelector={session.openLevelSelector}
             />

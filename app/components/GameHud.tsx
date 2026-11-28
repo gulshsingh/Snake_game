@@ -9,6 +9,8 @@ interface GameHudProps {
   sessionDifficulty?: DifficultyConfig;
   applesEaten: number;
   targetApples: number;
+  score?: number;
+  bestScore?: number;
   currentLevel: number;
   totalStars: number;
   timeLeft: number; // in seconds
@@ -33,6 +35,8 @@ export const GameHud: React.FC<GameHudProps> = ({
   sessionDifficulty,
   applesEaten,
   targetApples,
+  score = 0,
+  bestScore = 0,
   currentLevel,
   totalStars,
   timeLeft,
@@ -103,19 +107,37 @@ export const GameHud: React.FC<GameHudProps> = ({
         </button>
 
         {sessionTheme && sessionDifficulty && (
-          <span
-            className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${sessionDifficulty.badgeClass}`}
-            title={`${sessionTheme.name} • ${sessionDifficulty.label} (${sessionDifficulty.dots || "●●○○"})`}
-          >
-            <span>{sessionTheme.icon}</span>
-            <span>{sessionTheme.name.split(" ").pop()}</span>
-            <span className="opacity-50">•</span>
-            <span>{sessionDifficulty.label}</span>
-            <span className="text-[10px] tracking-tighter opacity-90">
-              ({sessionDifficulty.dots || "●●○○"})
+          <>
+            <span
+              className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${sessionDifficulty.badgeClass}`}
+              title={`${sessionTheme.name} • ${sessionDifficulty.label} (${sessionDifficulty.dots || "●●○○"})`}
+            >
+              <span>{sessionTheme.icon}</span>
+              <span>{sessionTheme.name.split(" ").pop()}</span>
+              <span className="opacity-50">•</span>
+              <span>{sessionDifficulty.label}</span>
+              <span className="text-[10px] tracking-tighter opacity-90">
+                ({sessionDifficulty.dots || "●●○○"})
+              </span>
             </span>
-          </span>
+            <span
+              className={`flex sm:hidden items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-bold ${sessionDifficulty.badgeClass}`}
+              title={`${sessionTheme.name} • ${sessionDifficulty.label} (${sessionDifficulty.dots || "●●○○"})`}
+            >
+              <span>{sessionTheme.icon}</span>
+              <span className="tracking-tighter">{sessionDifficulty.dots || "●●○○"}</span>
+            </span>
+          </>
         )}
+
+        <div
+          className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-bold tabular-nums"
+          title={`Score: ${score} • Best: ${bestScore}`}
+        >
+          <span className="text-amber-300">{score}</span>
+          <span className="text-white/30">/</span>
+          <span className="text-white/60 text-[10px]">Best {bestScore}</span>
+        </div>
       </div>
 
       {/* CENTER: COUNTDOWN TIMER */}

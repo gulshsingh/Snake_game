@@ -29,12 +29,6 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
   return (
     <div
       className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 select-none overscroll-contain"
-      onTouchStart={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -72,10 +66,6 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
             {/* Close Button */}
             <button
               type="button"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onClose();
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
@@ -144,6 +134,7 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
             const isUnlocked = lvl.level <= progress.unlockedLevel;
             const isCurrent = lvl.level === currentLevel;
             const starsEarned = progress.stars[lvl.level] || 0;
+            const bestTime = progress.bestTimes[lvl.level];
             const tierStyle = TIER_CONFIG[lvl.tier];
 
             return (
@@ -151,10 +142,6 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
                 key={lvl.level}
                 type="button"
                 disabled={!isUnlocked}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  if (isUnlocked) onSelectLevel(lvl);
-                }}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isUnlocked) onSelectLevel(lvl);
@@ -195,13 +182,13 @@ export const LevelSelectorModal: React.FC<LevelSelectorModalProps> = ({
                   )}
                 </div>
 
-                {/* Title & Theme Skin Info */}
+                {/* Title & Random Pool Info */}
                 <div className="my-0.5 flex-1 flex flex-col justify-center">
                   <div className="text-xs sm:text-sm font-extrabold text-white truncate leading-tight">
                     {lvl.title}
                   </div>
                   <div className={`text-[10px] font-semibold ${tierStyle.textColor} truncate mt-0.5`}>
-                    {tierStyle.themeIcon} {tierStyle.themeName}
+                    {bestTime ? `⚡ Best ${bestTime.toFixed(1)}s` : `${tierStyle.themeIcon} ${tierStyle.themeName}`}
                   </div>
                 </div>
 

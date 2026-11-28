@@ -91,19 +91,6 @@ export function useGameLoop({
 
       drawBoardBackground(ctx, cols, rows, c, theme, timeNow);
 
-      const vigGrad = ctx.createRadialGradient(
-        width / 2,
-        height / 2,
-        Math.min(width, height) * 0.42,
-        width / 2,
-        height / 2,
-        Math.max(width, height) * 0.72
-      );
-      vigGrad.addColorStop(0, "rgba(0,0,0,0)");
-      vigGrad.addColorStop(1, theme.vignette);
-      ctx.fillStyle = vigGrad;
-      ctx.fillRect(0, 0, width, height);
-
       drawObstacles(ctx, g.obstacles, c, theme, timeNow);
       drawApples(ctx, g.food, g.golden, c, theme, timeNow);
 
@@ -127,7 +114,7 @@ export function useGameLoop({
         cols,
         rows,
         speedMs: g.currentSpeedMs,
-        goldenAuraUntil: g.goldenAuraUntil,
+        goldenAuraUntil: (g.goldenAuraMs ?? 0) > 0 ? Date.now() + (g.goldenAuraMs ?? 0) : 0,
       });
 
       drawParticlesAndTexts(ctx, particlesRef.current, floatingTextsRef.current, c);
@@ -186,9 +173,18 @@ export function useGameLoop({
         }
       }
 
-      if (gameRef.current.golden && gameRef.current.golden.active) {
-        gameRef.current.golden.timeLeft -= dt;
-        if (gameRef.current.golden.timeLeft <= 0) gameRef.current.golden = null;
+      if (statusRef.current === "playing") {
+        if (gameRef.current.golden && gameRef.current.golden.active) {
+          gameRef.current.golden.timeLeft -= dt;
+          if (gameRef.current.golden.timeLeft <= 0) gameRef.current.golden = null;
+        }
+        if ((gameRef.current.goldenAuraMs ?? 0) > 0) {
+          gameRef.current.goldenAuraMs = Math.max(0, (gameRef.current.goldenAuraMs ?? 0) - dt);
+        }
+        if ((gameRef.current.comboTimerMs ?? 0) > 0) {
+          gameRef.current.comboTimerMs = Math.max(0, (gameRef.current.comboTimerMs ?? 0) - dt);
+          if (gameRef.current.comboTimerMs === 0) gameRef.current.comboCount = 0;
+        }
       }
 
       const interval = gameRef.current.currentSpeedMs;
