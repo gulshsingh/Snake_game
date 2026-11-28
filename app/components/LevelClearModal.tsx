@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { LevelConfig } from "../utils/types";
 
 interface LevelClearModalProps {
@@ -25,11 +25,11 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
   const [countdown, setCountdown] = useState(10);
   const hasTriggeredRef = useRef(false);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (hasTriggeredRef.current) return;
     hasTriggeredRef.current = true;
     onNextLevel();
-  };
+  }, [onNextLevel]);
 
   const handleReplay = () => {
     hasTriggeredRef.current = true;
@@ -55,7 +55,7 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [countdown, hasNextLevel]);
+  }, [countdown, handleNext, hasNextLevel]);
 
   return (
     <div
