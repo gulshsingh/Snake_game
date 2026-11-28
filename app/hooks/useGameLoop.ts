@@ -123,6 +123,11 @@ export function useGameLoop({
         hasStartedMoving: g.hasStartedMoving,
         tongueTimer: tongueTimerRef.current,
         mouthOpen: mouthOpenRef.current,
+        obstacles: g.obstacles,
+        cols,
+        rows,
+        speedMs: g.currentSpeedMs,
+        goldenAuraUntil: g.goldenAuraUntil,
       });
 
       drawParticlesAndTexts(ctx, particlesRef.current, floatingTextsRef.current, c);

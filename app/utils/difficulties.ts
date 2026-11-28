@@ -1,18 +1,26 @@
 import { MAP_THEME_IDS } from "./themes";
 import {
   DifficultyConfig,
+  DifficultyLayer,
   DifficultyLevel,
   Direction,
   MapThemeId,
   Point,
 } from "./types";
 
-export const DIFFICULTY_LEVELS: DifficultyLevel[] = [
-  "easy",
-  "medium",
-  "hard",
-  "expert",
-];
+export const DIFFICULTY_LEVELS: DifficultyLevel[] = ["easy", "medium", "hard", "expert"];
+export const DIFFICULTY_LAYERS: DifficultyLayer[] = [1, 2, 3, 4];
+
+const LAYER_DOTS: Record<DifficultyLayer, string> = {
+  1: "●○○○",
+  2: "●●○○",
+  3: "●●●○",
+  4: "●●●●",
+};
+
+export function getDifficultyLayerDots(layer: DifficultyLayer = 2): string {
+  return LAYER_DOTS[layer] || LAYER_DOTS[2];
+}
 
 export const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
   easy: {
@@ -24,7 +32,7 @@ export const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
     minSpeed: 140,
     speedStepFoods: 6,
     speedStepMs: 2,
-    obstacleRatio: 0.014,
+    obstacleRatio: 0.015,
     maxInitialObstacles: 5,
     obstacleStepFoods: 7,
     maxProgressiveObstacles: 2,
@@ -41,17 +49,17 @@ export const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
     badge: "⚡ Medium",
     description: "Normal speed, a few obstacles, steady ramp-up",
     baseSpeed: 145,
-    minSpeed: 105,
+    minSpeed: 112,
     speedStepFoods: 5,
     speedStepMs: 3,
-    obstacleRatio: 0.035,
+    obstacleRatio: 0.036,
     maxInitialObstacles: 14,
     obstacleStepFoods: 5,
     maxProgressiveObstacles: 6,
     bonusInterval: 5,
     bonusChance: 0.14,
     bonusDurationMs: 9000,
-    scorePerFood: 15,
+    scorePerFood: 16,
     bonusScore: 75,
     badgeClass: "bg-amber-500/15 text-amber-300 border-amber-400/40",
   },
@@ -60,8 +68,8 @@ export const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
     label: "Hard",
     badge: "🔥 Hard",
     description: "Fast speed, denser layouts, quicker scaling",
-    baseSpeed: 115,
-    minSpeed: 85,
+    baseSpeed: 116,
+    minSpeed: 88,
     speedStepFoods: 4,
     speedStepMs: 3,
     obstacleRatio: 0.068,
@@ -71,7 +79,7 @@ export const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
     bonusInterval: 4,
     bonusChance: 0.18,
     bonusDurationMs: 8000,
-    scorePerFood: 20,
+    scorePerFood: 24,
     bonusScore: 100,
     badgeClass: "bg-orange-500/15 text-orange-300 border-orange-400/40",
   },
@@ -81,7 +89,7 @@ export const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
     badge: "💀 Expert",
     description: "Very fast speed, complex layouts, tight safe zones",
     baseSpeed: 92,
-    minSpeed: 68,
+    minSpeed: 69,
     speedStepFoods: 3,
     speedStepMs: 4,
     obstacleRatio: 0.105,
@@ -91,11 +99,62 @@ export const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
     bonusInterval: 4,
     bonusChance: 0.22,
     bonusDurationMs: 7000,
-    scorePerFood: 30,
+    scorePerFood: 35,
     bonusScore: 150,
     badgeClass: "bg-rose-500/15 text-rose-300 border-rose-400/40",
   },
 };
+
+const LAYER_TUNING: Record<DifficultyLevel, Record<DifficultyLayer, {
+  baseSpeed: number;
+  minSpeed: number;
+  speedStepFoods: number;
+  speedStepMs: number;
+  obstacleRatio: number;
+  maxInitialObstacles: number;
+  maxProgressiveObstacles: number;
+  scorePerFood: number;
+}>> = {
+  easy: {
+    1: { baseSpeed: 190, minSpeed: 156, speedStepFoods: 6, speedStepMs: 2, obstacleRatio: 0.01, maxInitialObstacles: 3, maxProgressiveObstacles: 1, scorePerFood: 10 },
+    2: { baseSpeed: 180, minSpeed: 146, speedStepFoods: 6, speedStepMs: 2, obstacleRatio: 0.015, maxInitialObstacles: 5, maxProgressiveObstacles: 2, scorePerFood: 11 },
+    3: { baseSpeed: 170, minSpeed: 136, speedStepFoods: 5, speedStepMs: 2, obstacleRatio: 0.021, maxInitialObstacles: 7, maxProgressiveObstacles: 3, scorePerFood: 12 },
+    4: { baseSpeed: 160, minSpeed: 126, speedStepFoods: 5, speedStepMs: 3, obstacleRatio: 0.027, maxInitialObstacles: 10, maxProgressiveObstacles: 4, scorePerFood: 14 },
+  },
+  medium: {
+    1: { baseSpeed: 154, minSpeed: 120, speedStepFoods: 5, speedStepMs: 3, obstacleRatio: 0.03, maxInitialObstacles: 11, maxProgressiveObstacles: 4, scorePerFood: 15 },
+    2: { baseSpeed: 145, minSpeed: 112, speedStepFoods: 5, speedStepMs: 3, obstacleRatio: 0.036, maxInitialObstacles: 14, maxProgressiveObstacles: 6, scorePerFood: 17 },
+    3: { baseSpeed: 136, minSpeed: 104, speedStepFoods: 4, speedStepMs: 3, obstacleRatio: 0.044, maxInitialObstacles: 17, maxProgressiveObstacles: 7, scorePerFood: 19 },
+    4: { baseSpeed: 128, minSpeed: 96, speedStepFoods: 4, speedStepMs: 3, obstacleRatio: 0.052, maxInitialObstacles: 20, maxProgressiveObstacles: 8, scorePerFood: 21 },
+  },
+  hard: {
+    1: { baseSpeed: 124, minSpeed: 94, speedStepFoods: 4, speedStepMs: 3, obstacleRatio: 0.058, maxInitialObstacles: 22, maxProgressiveObstacles: 8, scorePerFood: 22 },
+    2: { baseSpeed: 116, minSpeed: 88, speedStepFoods: 4, speedStepMs: 3, obstacleRatio: 0.068, maxInitialObstacles: 26, maxProgressiveObstacles: 10, scorePerFood: 25 },
+    3: { baseSpeed: 108, minSpeed: 82, speedStepFoods: 4, speedStepMs: 4, obstacleRatio: 0.078, maxInitialObstacles: 30, maxProgressiveObstacles: 11, scorePerFood: 28 },
+    4: { baseSpeed: 102, minSpeed: 76, speedStepFoods: 3, speedStepMs: 4, obstacleRatio: 0.088, maxInitialObstacles: 34, maxProgressiveObstacles: 12, scorePerFood: 30 },
+  },
+  expert: {
+    1: { baseSpeed: 98, minSpeed: 74, speedStepFoods: 3, speedStepMs: 4, obstacleRatio: 0.094, maxInitialObstacles: 35, maxProgressiveObstacles: 12, scorePerFood: 32 },
+    2: { baseSpeed: 92, minSpeed: 69, speedStepFoods: 3, speedStepMs: 4, obstacleRatio: 0.105, maxInitialObstacles: 40, maxProgressiveObstacles: 14, scorePerFood: 35 },
+    3: { baseSpeed: 86, minSpeed: 65, speedStepFoods: 3, speedStepMs: 4, obstacleRatio: 0.115, maxInitialObstacles: 44, maxProgressiveObstacles: 15, scorePerFood: 38 },
+    4: { baseSpeed: 80, minSpeed: 62, speedStepFoods: 3, speedStepMs: 5, obstacleRatio: 0.125, maxInitialObstacles: 48, maxProgressiveObstacles: 16, scorePerFood: 42 },
+  },
+};
+
+export function getLayeredDifficultyConfig(
+  difficulty: DifficultyLevel,
+  layer: DifficultyLayer = 2
+): DifficultyConfig & { layer: DifficultyLayer; dots: string } {
+  const base = DIFFICULTY_CONFIGS[difficulty] || DIFFICULTY_CONFIGS.medium;
+  const safeLayer: DifficultyLayer = DIFFICULTY_LAYERS.includes(layer) ? layer : 2;
+  const tuned = LAYER_TUNING[base.id][safeLayer];
+  return {
+    ...base,
+    ...tuned,
+    layer: safeLayer,
+    dots: getDifficultyLayerDots(safeLayer),
+  };
+}
 
 let seedCounter = 0;
 
@@ -174,17 +233,18 @@ export function pickRandomMapTheme(
 }
 
 /**
- * Computes effective baseSpeed and minSpeed tuned to both difficulty and current level.
+ * Computes effective baseSpeed and minSpeed tuned to difficulty, 4-layer tier, and level.
  */
 export function getLevelSpeedConfig(
   difficulty: DifficultyLevel,
-  level: number = 1
+  level: number = 1,
+  layer: DifficultyLayer = 2
 ): { baseSpeed: number; minSpeed: number } {
-  const diffCfg = DIFFICULTY_CONFIGS[difficulty];
+  const diffCfg = getLayeredDifficultyConfig(difficulty, layer);
   const lvl = Math.max(1, Math.floor(level || 1));
-  const levelBoost = Math.min(14, Math.floor((lvl - 1) * 0.5));
+  const levelBoost = Math.min(10, Math.floor((lvl - 1) * 0.4));
   const baseSpeed = Math.max(diffCfg.minSpeed + 6, diffCfg.baseSpeed - levelBoost);
-  const minSpeed = Math.max(58, diffCfg.minSpeed - Math.floor(levelBoost * 0.5));
+  const minSpeed = Math.max(58, diffCfg.minSpeed - Math.floor(levelBoost * 0.4));
   return { baseSpeed, minSpeed };
 }
 
@@ -199,20 +259,23 @@ export function pickRandomDifficulty(
     const idx = Math.floor(rng() * DIFFICULTY_LEVELS.length);
     return DIFFICULTY_LEVELS[Math.min(DIFFICULTY_LEVELS.length - 1, Math.max(0, idx))];
   }
-
   const r = rng();
   if (level <= 3) return r < 0.75 ? "easy" : "medium";
-  if (level <= 8) {
-    if (r < 0.2) return "easy";
-    if (r < 0.75) return "medium";
-    return "hard";
-  }
-  if (level <= 16) {
-    if (r < 0.25) return "medium";
-    if (r < 0.75) return "hard";
-    return "expert";
-  }
-  if (r < 0.1) return "medium";
-  if (r < 0.55) return "hard";
-  return "expert";
+  if (level <= 8) return r < 0.2 ? "easy" : r < 0.75 ? "medium" : "hard";
+  if (level <= 16) return r < 0.25 ? "medium" : r < 0.75 ? "hard" : "expert";
+  return r < 0.1 ? "medium" : r < 0.55 ? "hard" : "expert";
+}
+
+/**
+ * Randomly picks a sub-layer (1..4) inside the selected difficulty, weighted by level.
+ */
+export function pickRandomDifficultyLayer(
+  rng: () => number = Math.random,
+  level: number = 1
+): DifficultyLayer {
+  const r = rng();
+  if (level <= 3) return r < 0.45 ? 1 : r < 0.8 ? 2 : r < 0.95 ? 3 : 4;
+  if (level <= 8) return r < 0.2 ? 1 : r < 0.55 ? 2 : r < 0.85 ? 3 : 4;
+  if (level <= 16) return r < 0.1 ? 1 : r < 0.35 ? 2 : r < 0.7 ? 3 : 4;
+  return r < 0.1 ? 1 : r < 0.3 ? 2 : r < 0.65 ? 3 : 4;
 }

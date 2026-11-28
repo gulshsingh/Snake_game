@@ -53,7 +53,7 @@ export const PauseOverlay: React.FC<PauseOverlayProps> = ({
         <p className="text-xs text-white/75 mb-4 pointer-events-none">
           {`Level ${level.level}: ${level.title}`}
           {session && sessionTheme && sessionDifficulty
-            ? ` • ${sessionTheme.icon} ${sessionTheme.name} (${sessionDifficulty.label})`
+            ? ` • ${sessionTheme.icon} ${sessionTheme.name} (${sessionDifficulty.label} ${sessionDifficulty.dots || "●●○○"})`
             : ""}
         </p>
 

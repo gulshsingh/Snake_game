@@ -193,7 +193,7 @@ export function useSnakeControls({
   const turn = useCallback(
     (d: Direction) => {
       if (statusRef.current === "level_clear") {
-        nextLevel();
+        // Wait until the user explicitly taps Start Level on LevelClearModal
         return;
       }
       if (statusRef.current === "ready" || statusRef.current === "over") {
@@ -228,7 +228,7 @@ export function useSnakeControls({
         } catch {}
       }
     },
-    [gameRef, nextLevel, resumeGraceMsRef, start, statusRef]
+    [gameRef, resumeGraceMsRef, start, statusRef]
   );
 
   useEffect(() => {
@@ -262,6 +262,7 @@ export function useSnakeControls({
     const now = Date.now();
     if (now - lastPauseToggleRef.current < 220) return;
     lastPauseToggleRef.current = now;
+    if (statusRef.current === "level_clear") return;
     if (statusRef.current === "playing") pauseGame();
     else if (statusRef.current === "paused") resumeGame();
     else start(false);
@@ -336,7 +337,7 @@ export function useSnakeControls({
         toggleSound();
       } else if (e.key === "r" || e.key === "R") {
         e.preventDefault();
-        start(false);
+        if (statusRef.current !== "level_clear") start(false);
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         toggleFullscreenRef.current();
@@ -344,7 +345,7 @@ export function useSnakeControls({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setShowLevelSelector, showLevelSelectorRef, start, toggleFullscreenRef, togglePause, toggleSound, turn]);
+  }, [setShowLevelSelector, showLevelSelectorRef, start, statusRef, toggleFullscreenRef, togglePause, toggleSound, turn]);
 
   return {
     start,

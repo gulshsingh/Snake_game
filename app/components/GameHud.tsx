@@ -105,12 +105,15 @@ export const GameHud: React.FC<GameHudProps> = ({
         {sessionTheme && sessionDifficulty && (
           <span
             className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${sessionDifficulty.badgeClass}`}
-            title={`${sessionTheme.name} • ${sessionDifficulty.label}`}
+            title={`${sessionTheme.name} • ${sessionDifficulty.label} (${sessionDifficulty.dots || "●●○○"})`}
           >
             <span>{sessionTheme.icon}</span>
             <span>{sessionTheme.name.split(" ").pop()}</span>
             <span className="opacity-50">•</span>
             <span>{sessionDifficulty.label}</span>
+            <span className="text-[10px] tracking-tighter opacity-90">
+              ({sessionDifficulty.dots || "●●○○"})
+            </span>
           </span>
         )}
       </div>

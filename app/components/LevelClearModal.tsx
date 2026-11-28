@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useRef, useCallback } from "react";
 import { LevelConfig } from "../utils/types";
 
 interface LevelClearModalProps {
@@ -22,7 +22,6 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
   onReplay,
   onOpenLevelSelector,
 }) => {
-  const [countdown, setCountdown] = useState(10);
   const hasTriggeredRef = useRef(false);
 
   const handleNext = useCallback(() => {
@@ -40,22 +39,6 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
     hasTriggeredRef.current = true;
     onOpenLevelSelector();
   };
-
-  // AUTOMATIC NEXT LEVEL COUNTDOWN (Clean effect lifecycle, outside of render)
-  useEffect(() => {
-    if (!hasNextLevel) return;
-
-    if (countdown === 0) {
-      handleNext();
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [countdown, handleNext, hasNextLevel]);
 
   return (
     <div
@@ -169,31 +152,12 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
               }}
               className="w-full py-3 sm:py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-sm sm:text-base tracking-wide shadow-xl shadow-emerald-500/30 touch-btn cursor-pointer active:scale-95 flex items-center justify-center gap-2"
             >
-              <span>NEXT LEVEL {level.level + 1}</span>
-              <span className="text-xs bg-black/25 px-2 py-0.5 rounded-full font-mono">
-                {countdown}s
-              </span>
+              <span>▶ START LEVEL {level.level + 1}</span>
               <span>➔</span>
             </button>
           ) : (
             <div className="text-xs font-bold text-amber-300 py-2">
-              🎉 Congratulations! You have conquered all 10,000 levels!
-            </div>
-          )}
-
-          {/* AUTO-ADVANCE STATUS BAR WITH PROGRESS */}
-          {hasNextLevel && (
-            <div className="w-full flex flex-col items-center gap-1 my-0.5">
-              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 transition-all duration-1000 ease-linear rounded-full"
-                  style={{ width: `${(countdown / 10) * 100}%` }}
-                />
-              </div>
-              <div className="text-[11px] text-white/70 font-semibold flex items-center gap-1">
-                <span>⏱️ Auto-starting next level in</span>
-                <span className="text-amber-300 font-bold font-mono">{countdown}s</span>
-              </div>
+              🎉 Congratulations! You have conquered all levels!
             </div>
           )}
 

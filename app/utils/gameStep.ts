@@ -6,9 +6,9 @@ import {
   pushJuiceParticles,
 } from "./fxRenderer";
 import {
-  DIFFICULTY_CONFIGS,
   findSafeFoodCell,
   findSafeProgressiveObstacle,
+  getLayeredDifficultyConfig,
   getLevelSpeedConfig,
 } from "./sessionGenerator";
 import {
@@ -40,6 +40,7 @@ export interface SnakeGameState {
   startTime: number;
   bulges: { index: number; progress: number }[];
   hasStartedMoving: boolean;
+  goldenAuraUntil?: number;
 }
 
 export function getInitialGameState(cols = 20, rows = 20): SnakeGameState {
@@ -67,6 +68,7 @@ export function getInitialGameState(cols = 20, rows = 20): SnakeGameState {
     startTime: 0,
     bulges: [],
     hasStartedMoving: false,
+    goldenAuraUntil: 0,
   };
 }
 
@@ -141,7 +143,7 @@ export function executeGameStep(ctx: StepContext): void {
     try {
       soundFx.playDie();
     } catch {}
-    pushDeathParticles(particles, (head.x + 0.5) * c, (head.y + 0.5) * c, theme.snakeHead);
+    pushDeathParticles(particles, (head.x + 0.5) * c, (head.y + 0.5) * c, "#a855f7");
     return;
   }
 
@@ -150,9 +152,10 @@ export function executeGameStep(ctx: StepContext): void {
     .map((b) => ({ ...b, index: b.index + 1 }))
     .filter((b) => b.index < g.snake.length);
 
-  const diffCfg = session
-    ? DIFFICULTY_CONFIGS[session.difficulty]
-    : DIFFICULTY_CONFIGS.medium;
+  const diffCfg = getLayeredDifficultyConfig(
+    session?.difficulty ?? "medium",
+    session?.difficultyLayer ?? 2
+  );
 
   if (eatingFood) {
     g.score += diffCfg.scorePerFood;
@@ -192,7 +195,8 @@ export function executeGameStep(ctx: StepContext): void {
 
     const levelSpeedCfg = getLevelSpeedConfig(
       diffCfg.id,
-      session?.level ?? levelConfig.level
+      session?.level ?? levelConfig.level,
+      session?.difficultyLayer ?? 2
     );
     const speedTier = Math.floor(g.applesEaten / diffCfg.speedStepFoods);
     const nextSpeed = Math.max(
@@ -249,6 +253,7 @@ export function executeGameStep(ctx: StepContext): void {
   } else if (eatingGolden) {
     g.score += diffCfg.bonusScore;
     g.goldenEaten += 1;
+    g.goldenAuraUntil = Date.now() + 5000;
 
     if (g.score > bestScoreRef.current) {
       bestScoreRef.current = g.score;
