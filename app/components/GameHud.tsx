@@ -9,6 +9,8 @@ interface GameHudProps {
   sessionDifficulty?: DifficultyConfig;
   applesEaten: number;
   targetApples: number;
+  score?: number;
+  bestScore?: number;
   currentLevel: number;
   totalStars: number;
   timeLeft: number; // in seconds
@@ -33,6 +35,8 @@ export const GameHud: React.FC<GameHudProps> = ({
   sessionDifficulty,
   applesEaten,
   targetApples,
+  score = 0,
+  bestScore = 0,
   currentLevel,
   totalStars,
   timeLeft,
@@ -92,6 +96,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.currentTarget.blur();
             onOpenLevelSelector();
           }}
           className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-[11px] sm:text-xs font-bold text-amber-300 cursor-pointer touch-btn active:scale-95"
@@ -103,19 +108,37 @@ export const GameHud: React.FC<GameHudProps> = ({
         </button>
 
         {sessionTheme && sessionDifficulty && (
-          <span
-            className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${sessionDifficulty.badgeClass}`}
-            title={`${sessionTheme.name} • ${sessionDifficulty.label} (${sessionDifficulty.dots || "●●○○"})`}
-          >
-            <span>{sessionTheme.icon}</span>
-            <span>{sessionTheme.name.split(" ").pop()}</span>
-            <span className="opacity-50">•</span>
-            <span>{sessionDifficulty.label}</span>
-            <span className="text-[10px] tracking-tighter opacity-90">
-              ({sessionDifficulty.dots || "●●○○"})
+          <>
+            <span
+              className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${sessionDifficulty.badgeClass}`}
+              title={`${sessionTheme.name} • ${sessionDifficulty.label} (${sessionDifficulty.dots || "●●○○"})`}
+            >
+              <span>{sessionTheme.icon}</span>
+              <span>{sessionTheme.name.split(" ").pop()}</span>
+              <span className="opacity-50">•</span>
+              <span>{sessionDifficulty.label}</span>
+              <span className="text-[10px] tracking-tighter opacity-90">
+                ({sessionDifficulty.dots || "●●○○"})
+              </span>
             </span>
-          </span>
+            <span
+              className={`flex sm:hidden items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-bold ${sessionDifficulty.badgeClass}`}
+              title={`${sessionTheme.name} • ${sessionDifficulty.label} (${sessionDifficulty.dots || "●●○○"})`}
+            >
+              <span>{sessionTheme.icon}</span>
+              <span className="tracking-tighter">{sessionDifficulty.dots || "●●○○"}</span>
+            </span>
+          </>
         )}
+
+        <div
+          className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-bold tabular-nums"
+          title={`Score: ${score} • Best: ${bestScore}`}
+        >
+          <span className="text-amber-300">{score}</span>
+          <span className="text-white/30">/</span>
+          <span className="text-white/60 text-[10px]">Best {bestScore}</span>
+        </div>
       </div>
 
       {/* CENTER: COUNTDOWN TIMER */}
@@ -139,6 +162,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.currentTarget.blur();
             onToggleSound();
           }}
           className="p-1 sm:p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 touch-btn text-xs sm:text-sm cursor-pointer"
@@ -153,6 +177,7 @@ export const GameHud: React.FC<GameHudProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              e.currentTarget.blur();
               onToggleControlMode();
             }}
             className={`p-1 sm:p-2 rounded-lg border touch-btn text-[11px] sm:text-xs font-bold flex items-center gap-0.5 cursor-pointer ${
@@ -171,6 +196,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.currentTarget.blur();
             onToggleFullscreen();
           }}
           className="p-1 sm:p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 touch-btn text-xs sm:text-sm font-bold text-white/80 cursor-pointer"
@@ -185,6 +211,7 @@ export const GameHud: React.FC<GameHudProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              e.currentTarget.blur();
               onRestart();
             }}
             className="p-1 sm:p-2 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 touch-btn text-xs sm:text-sm text-white/85 cursor-pointer"
@@ -199,6 +226,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.currentTarget.blur();
             onTogglePause();
           }}
           className="p-1 sm:p-2 px-2 sm:px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm border border-emerald-400/30 touch-btn shadow-md cursor-pointer active:scale-95"

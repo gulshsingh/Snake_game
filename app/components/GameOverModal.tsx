@@ -12,6 +12,8 @@ interface GameOverModalProps {
   applesEaten: number;
   targetApples: number;
   snakeLength: number;
+  score?: number;
+  bestScore?: number;
   onRetry: () => void;
   onOpenLevelSelector: () => void;
 }
@@ -25,6 +27,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   applesEaten,
   targetApples,
   snakeLength,
+  score = 0,
+  bestScore = 0,
   onRetry,
   onOpenLevelSelector,
 }) => {
@@ -32,9 +36,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
     <div
       className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-4 text-center z-40 select-none cursor-pointer"
       style={{ touchAction: "manipulation" }}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onRetry();
-      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onRetry();
       }}
@@ -63,21 +64,22 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <div className="w-full bg-white/5 rounded-2xl p-3 border border-white/10 mb-5 flex items-center justify-around text-xs pointer-events-none">
           <div>
             <div className="text-white/50 text-[10px] uppercase font-bold">Apples</div>
-            <div className="text-lg font-black text-emerald-400 tabular-nums">
+            <div className="text-base sm:text-lg font-black text-emerald-400 tabular-nums">
               {applesEaten} / {targetApples}
             </div>
           </div>
           <div className="w-px h-8 bg-white/10" />
           <div>
-            <div className="text-white/50 text-[10px] uppercase font-bold">Level</div>
-            <div className="text-lg font-black text-amber-300 tabular-nums">
-              {level.level}
+            <div className="text-white/50 text-[10px] uppercase font-bold">Score</div>
+            <div className="text-base sm:text-lg font-black text-amber-300 tabular-nums">
+              {score}
             </div>
+            <div className="text-[9px] text-white/45 font-semibold">Best {bestScore}</div>
           </div>
           <div className="w-px h-8 bg-white/10" />
           <div>
             <div className="text-white/50 text-[10px] uppercase font-bold">Length</div>
-            <div className="text-lg font-black text-cyan-400 tabular-nums">
+            <div className="text-base sm:text-lg font-black text-cyan-400 tabular-nums">
               {snakeLength}
             </div>
           </div>
@@ -87,10 +89,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <div className="w-full flex flex-col gap-2">
           <button
             type="button"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onRetry();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onRetry();
@@ -103,10 +101,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
           <button
             type="button"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onOpenLevelSelector();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onOpenLevelSelector();

@@ -129,6 +129,7 @@ export function useSnakeSession({
         food: { ...session.initialFood },
         golden: null,
         obstacles: session.obstacles.map((o) => ({ ...o })),
+        pendingObstacles: [],
         score: 0,
         applesEaten: 0,
         goldenEaten: 0,
@@ -138,6 +139,9 @@ export function useSnakeSession({
         bulges: [],
         hasStartedMoving: false,
         goldenAuraUntil: 0,
+        goldenAuraMs: 0,
+        comboCount: 0,
+        comboTimerMs: 0,
       };
       particles.current = [];
       floatingTexts.current = [];
@@ -228,6 +232,13 @@ export function useSnakeSession({
         if (savedStars) {
           setLevelProgress((prev) => ({ ...prev, stars: JSON.parse(savedStars) }));
         }
+        const savedBestTimes = localStorage.getItem("snake-level-best-times");
+        if (savedBestTimes) {
+          const parsedTimes = JSON.parse(savedBestTimes) as Record<number, number>;
+          if (parsedTimes && typeof parsedTimes === "object") {
+            setLevelProgress((prev) => ({ ...prev, bestTimes: parsedTimes }));
+          }
+        }
         const savedLastMap = localStorage.getItem("snake-last-map") as MapThemeId | null;
         if (savedLastMap) lastMapThemeRef.current = savedLastMap;
 
@@ -296,7 +307,14 @@ export function useSnakeSession({
     setStatus("level_clear");
     try {
       soundFx.playLevelComplete();
-      soundFx.playStar(stars);
+      soundFx.haptic([20, 40, 25]);
+      for (let i = 1; i <= stars; i++) {
+        setTimeout(() => {
+          try {
+            soundFx.playStar(i);
+          } catch {}
+        }, i * 160);
+      }
     } catch {}
 
     setLevelProgress((prev) => {
@@ -312,6 +330,7 @@ export function useSnakeSession({
         localStorage.removeItem("snake-active-level-session");
         localStorage.setItem("snake-unlocked-level", String(newUnlocked));
         localStorage.setItem("snake-level-stars", JSON.stringify(newStars));
+        localStorage.setItem("snake-level-best-times", JSON.stringify(newBestTimes));
       } catch {}
       return { ...prev, unlockedLevel: newUnlocked, stars: newStars, bestTimes: newBestTimes };
     });

@@ -102,6 +102,12 @@ export default function SnakeGame() {
           role="button"
           tabIndex={0}
           onClick={viewport.revealFullscreenHud}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              viewport.revealFullscreenHud();
+            }
+          }}
           onMouseEnter={viewport.revealFullscreenHud}
           className="fixed top-2.5 left-1/2 -translate-x-1/2 z-40 px-3 py-1 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/10 text-white/60 hover:text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg cursor-pointer transition-all duration-200 select-none pointer-events-auto"
           title="Move mouse to top to reveal controls"
@@ -119,6 +125,8 @@ export default function SnakeGame() {
         sessionDifficulty={activeDifficulty}
         applesEaten={session.hudStats.applesEaten}
         targetApples={session.currentLevelConfig.targetApples}
+        score={session.hudStats.score}
+        bestScore={session.hudStats.bestScore}
         currentLevel={session.currentLevelNum}
         totalStars={totalStarsCount}
         timeLeft={session.timeLeft}
@@ -163,9 +171,13 @@ export default function SnakeGame() {
         >
           <canvas
             ref={canvasRef}
-            width={viewport.canvasDim.width}
-            height={viewport.canvasDim.height}
-            className="block w-full h-full pointer-events-none"
+            width={Math.round(viewport.canvasDim.width * viewport.canvasDim.dpr)}
+            height={Math.round(viewport.canvasDim.height * viewport.canvasDim.dpr)}
+            style={{
+              width: viewport.canvasDim.width,
+              height: viewport.canvasDim.height,
+            }}
+            className="block pointer-events-none"
           />
 
           {session.status === "ready" && (
@@ -199,6 +211,8 @@ export default function SnakeGame() {
               level={session.currentLevelConfig}
               starsEarned={session.earnedStars}
               timeTaken={session.levelTimeTaken}
+              score={session.hudStats.score}
+              bestScore={session.hudStats.bestScore}
               hasNextLevel={true}
               onNextLevel={session.nextLevel}
               onReplay={() => session.start(true)}
@@ -216,6 +230,8 @@ export default function SnakeGame() {
               applesEaten={session.hudStats.applesEaten}
               targetApples={session.currentLevelConfig.targetApples}
               snakeLength={session.hudStats.snakeLength}
+              score={session.hudStats.score}
+              bestScore={session.hudStats.bestScore}
               onRetry={() => session.start(false)}
               onOpenLevelSelector={session.openLevelSelector}
             />

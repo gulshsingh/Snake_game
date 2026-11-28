@@ -19,6 +19,7 @@ import {
   LevelConfig,
   Obstacle,
   Particle,
+  PendingObstacle,
   Point,
   ThemeConfig,
 } from "./types";
@@ -32,6 +33,7 @@ export interface SnakeGameState {
   food: Point;
   golden: GoldenApple | null;
   obstacles: Obstacle[];
+  pendingObstacles?: PendingObstacle[];
   score: number;
   applesEaten: number;
   goldenEaten: number;
@@ -41,6 +43,24 @@ export interface SnakeGameState {
   bulges: { index: number; progress: number }[];
   hasStartedMoving: boolean;
   goldenAuraUntil?: number;
+  goldenAuraMs?: number;
+  comboCount?: number;
+  comboTimerMs?: number;
+}
+
+export function adjustGameTimersForPause(
+  g: SnakeGameState,
+  pauseDurationMs: number
+): void {
+  if (pauseDurationMs <= 0) return;
+  if (g.hasStartedMoving) {
+    g.startTime += pauseDurationMs;
+  }
+  for (const obs of g.obstacles) {
+    if (obs.spawnedAt) {
+      obs.spawnedAt += pauseDurationMs;
+    }
+  }
 }
 
 export function getInitialGameState(cols = 20, rows = 20): SnakeGameState {
@@ -60,6 +80,7 @@ export function getInitialGameState(cols = 20, rows = 20): SnakeGameState {
     food: { x: Math.min(cols - 3, startX + 4), y: startY },
     golden: null,
     obstacles: [],
+    pendingObstacles: [],
     score: 0,
     applesEaten: 0,
     goldenEaten: 0,
@@ -69,6 +90,9 @@ export function getInitialGameState(cols = 20, rows = 20): SnakeGameState {
     bulges: [],
     hasStartedMoving: false,
     goldenAuraUntil: 0,
+    goldenAuraMs: 0,
+    comboCount: 0,
+    comboTimerMs: 0,
   };
 }
 
@@ -142,6 +166,7 @@ export function executeGameStep(ctx: StepContext): void {
     shakeRef.current = 16;
     try {
       soundFx.playDie();
+      soundFx.haptic([40, 30, 60]);
     } catch {}
     pushDeathParticles(particles, (head.x + 0.5) * c, (head.y + 0.5) * c, "#a855f7");
     return;
@@ -158,7 +183,13 @@ export function executeGameStep(ctx: StepContext): void {
   );
 
   if (eatingFood) {
-    g.score += diffCfg.scorePerFood;
+    const nextCombo = (g.comboTimerMs ?? 0) > 0 ? Math.min(5, (g.comboCount ?? 0) + 1) : 1;
+    g.comboCount = nextCombo;
+    g.comboTimerMs = 3500;
+    const comboBonus = nextCombo > 1 ? Math.round(diffCfg.scorePerFood * 0.25 * (nextCombo - 1)) : 0;
+    const pointsEarned = diffCfg.scorePerFood + comboBonus;
+
+    g.score += pointsEarned;
     g.applesEaten += 1;
 
     if (g.score > bestScoreRef.current) {
@@ -171,11 +202,19 @@ export function executeGameStep(ctx: StepContext): void {
     const foodPx = (g.food.x + 0.5) * c;
     const foodPy = (g.food.y + 0.5) * c;
     pushJuiceParticles(particles, foodPx, foodPy, theme.appleColor, 20);
-    pushFloatingText(floatingTexts, `+${diffCfg.scorePerFood}`, foodPx, foodPy - 12, "#fbbf24");
+    const scoreLabel = nextCombo > 1 ? `+${pointsEarned} x${nextCombo}!` : `+${pointsEarned}`;
+    pushFloatingText(
+      floatingTexts,
+      scoreLabel,
+      foodPx,
+      foodPy - 12,
+      nextCombo >= 3 ? "#fde047" : "#fbbf24"
+    );
     shakeRef.current = 4;
 
     try {
-      soundFx.playEat(Math.min(5, Math.floor(g.score / 30) + 1));
+      soundFx.playEat(nextCombo);
+      soundFx.haptic(12);
     } catch {}
 
     g.bulges.push({ index: 0, progress: 0 });
@@ -213,22 +252,28 @@ export function executeGameStep(ctx: StepContext): void {
       g.applesEaten % diffCfg.obstacleStepFoods === 0 &&
       g.dynamicObstaclesAdded < diffCfg.maxProgressiveObstacles
     ) {
+      const existingAndPending = [...g.obstacles, ...(g.pendingObstacles ?? [])];
       const newObs = findSafeProgressiveObstacle({
         cols,
         rows,
         snake: g.snake,
         dir: g.dir,
-        obstacles: g.obstacles,
+        obstacles: existingAndPending,
         food: g.food,
         golden: g.golden?.active ? g.golden : null,
       });
       if (newObs) {
-        g.obstacles.push(newObs);
+        if (!g.pendingObstacles) g.pendingObstacles = [];
+        g.pendingObstacles.push({
+          x: newObs.x,
+          y: newObs.y,
+          variant: newObs.variant,
+          remainingMs: 1200,
+        });
         g.dynamicObstaclesAdded += 1;
         const obsPx = (newObs.x + 0.5) * c;
         const obsPy = (newObs.y + 0.5) * c;
-        pushJuiceParticles(particles, obsPx, obsPy, theme.obstacleAccent || theme.accent, 12);
-        pushFloatingText(floatingTexts, "🪨 +OBSTACLE", obsPx, obsPy - 12, "#fda4af");
+        pushFloatingText(floatingTexts, "⚠️ INCOMING!", obsPx, obsPy - 12, "#fda4af");
       }
     }
 
@@ -254,6 +299,7 @@ export function executeGameStep(ctx: StepContext): void {
     g.score += diffCfg.bonusScore;
     g.goldenEaten += 1;
     g.goldenAuraUntil = Date.now() + 5000;
+    g.goldenAuraMs = 5000;
 
     if (g.score > bestScoreRef.current) {
       bestScoreRef.current = g.score;
@@ -270,6 +316,7 @@ export function executeGameStep(ctx: StepContext): void {
 
     try {
       soundFx.playGolden();
+      soundFx.haptic([18, 25, 22]);
     } catch {}
 
     g.bulges.push({ index: 0, progress: 0 });

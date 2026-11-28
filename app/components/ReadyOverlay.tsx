@@ -34,9 +34,6 @@ export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({
     <div
       className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-3 sm:p-4 text-center z-30 select-none cursor-pointer"
       style={{ touchAction: "manipulation" }}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onStart();
-      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onStart();
       }}
@@ -108,7 +105,6 @@ export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({
 
         <button
           type="button"
-          onPointerDown={onOpenLevelSelector}
           onClick={onOpenLevelSelector}
           className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 touch-btn cursor-pointer active:scale-95 flex items-center gap-1.5"
         >
@@ -120,10 +116,6 @@ export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({
       {/* START SLITHERING BUTTON */}
       <button
         type="button"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          onStart();
-        }}
         onClick={(e) => {
           e.stopPropagation();
           onStart();

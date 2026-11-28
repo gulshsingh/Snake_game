@@ -7,6 +7,8 @@ interface LevelClearModalProps {
   level: LevelConfig;
   starsEarned: number;
   timeTaken: number;
+  score?: number;
+  bestScore?: number;
   hasNextLevel: boolean;
   onNextLevel: () => void;
   onReplay: () => void;
@@ -17,6 +19,8 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
   level,
   starsEarned,
   timeTaken,
+  score = 0,
+  bestScore = 0,
   hasNextLevel,
   onNextLevel,
   onReplay,
@@ -93,16 +97,19 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
         {/* TIME & STATS CARD */}
         <div className="w-full bg-white/5 rounded-2xl p-2.5 sm:p-3 border border-white/10 mb-3 flex items-center justify-around text-xs">
           <div>
-            <div className="text-white/50 text-[10px] uppercase font-bold">Time Taken</div>
+            <div className="text-white/50 text-[10px] uppercase font-bold">Time</div>
             <div className="text-sm sm:text-base font-black text-amber-300 tabular-nums">
               {timeTaken.toFixed(1)}s
             </div>
           </div>
           <div className="w-px h-8 bg-white/10" />
           <div>
-            <div className="text-white/50 text-[10px] uppercase font-bold">Time Limit</div>
-            <div className="text-sm sm:text-base font-black text-white/80 tabular-nums">
-              {level.timeLimit}s
+            <div className="text-white/50 text-[10px] uppercase font-bold">Score</div>
+            <div
+              className="text-sm sm:text-base font-black text-cyan-300 tabular-nums"
+              title={`Best: ${bestScore}`}
+            >
+              {score}
             </div>
           </div>
           <div className="w-px h-8 bg-white/10" />
@@ -114,25 +121,15 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
           </div>
         </div>
 
-        {/* TIER PROMOTION ALERT */}
-        {(level.level === 5 || level.level === 10 || level.level === 15) && (
+        {/* STAGE MILESTONE ALERT */}
+        {level.level % 5 === 0 && (
           <div className="w-full bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-400/40 rounded-2xl p-2 sm:p-2.5 mb-3 text-center">
             <div className="text-[11px] font-black text-amber-300 uppercase tracking-wider flex items-center justify-center gap-1">
-              <span>🔓</span>
-              <span>
-                {level.level === 5
-                  ? "NEW BOARD & SNAKE SKIN UNLOCKED! 🏜️"
-                  : level.level === 10
-                  ? "NEW BOARD & SNAKE SKIN UNLOCKED! 🌋"
-                  : "NEW BOARD & SNAKE SKIN UNLOCKED! ⚡"}
-              </span>
+              <span>🏅</span>
+              <span>{`STAGE ${level.level} MILESTONE CLEARED!`}</span>
             </div>
             <div className="text-[10px] text-white/90 mt-0.5 font-semibold">
-              {level.level === 5
-                ? "Level 6: Golden Desert Board & Sand Cobra Skin!"
-                : level.level === 10
-                ? "Level 11: Volcanic Basalt Board & Lava Dragon Skin!"
-                : "Level 16: Cyber Void Board & Neon Cyan Python Skin!"}
+              {`Next bracket unlocked: Level ${level.level + 1}+ brings fresh layouts & faster action!`}
             </div>
           </div>
         )}
@@ -142,10 +139,6 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
           {hasNextLevel ? (
             <button
               type="button"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                handleNext();
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 handleNext();
@@ -164,10 +157,6 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
           <div className="flex gap-2">
             <button
               type="button"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                handleReplay();
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 handleReplay();
@@ -179,10 +168,6 @@ export const LevelClearModal: React.FC<LevelClearModalProps> = ({
 
             <button
               type="button"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                handleOpenMap();
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 handleOpenMap();

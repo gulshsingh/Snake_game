@@ -1,12 +1,13 @@
 import { MutableRefObject, RefObject, useEffect } from "react";
 import { soundFx } from "../utils/audio";
-import { drawBoardBackground, drawObstacles } from "../utils/mapRenderer";
+import { drawBoardBackground, drawObstacles, drawPendingObstacles } from "../utils/mapRenderer";
 import { drawSerpent } from "../utils/snakeRenderer";
 import {
   drawApples,
   drawParticlesAndTexts,
   drawReadyHint,
   drawResumeGraceOverlay,
+  pushJuiceParticles,
 } from "../utils/fxRenderer";
 import { executeGameStep, SnakeGameState } from "../utils/gameStep";
 import {
@@ -67,6 +68,7 @@ export function useGameLoop({
     let raf = 0;
     let lastTime = performance.now();
     let accumulator = 0;
+    let lastTickSecond = -1;
 
     function render(interp: number, timeNow: number) {
       const canvas = canvasRef.current;
@@ -78,9 +80,11 @@ export function useGameLoop({
       const { cols, rows } = gridSizeRef.current;
       const width = cols * c;
       const height = rows * c;
+      const dpr = width > 0 ? Math.max(1, canvas.width / width) : 1;
       const theme = themeRef.current;
       const g = gameRef.current;
 
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.save();
       if (shakeRef.current > 0) {
         ctx.translate(
@@ -89,21 +93,9 @@ export function useGameLoop({
         );
       }
 
-      drawBoardBackground(ctx, cols, rows, c, theme, timeNow);
+      drawBoardBackground(ctx, cols, rows, c, theme, timeNow, dpr);
 
-      const vigGrad = ctx.createRadialGradient(
-        width / 2,
-        height / 2,
-        Math.min(width, height) * 0.42,
-        width / 2,
-        height / 2,
-        Math.max(width, height) * 0.72
-      );
-      vigGrad.addColorStop(0, "rgba(0,0,0,0)");
-      vigGrad.addColorStop(1, theme.vignette);
-      ctx.fillStyle = vigGrad;
-      ctx.fillRect(0, 0, width, height);
-
+      drawPendingObstacles(ctx, g.pendingObstacles || [], c, theme, timeNow);
       drawObstacles(ctx, g.obstacles, c, theme, timeNow);
       drawApples(ctx, g.food, g.golden, c, theme, timeNow);
 
@@ -127,7 +119,7 @@ export function useGameLoop({
         cols,
         rows,
         speedMs: g.currentSpeedMs,
-        goldenAuraUntil: g.goldenAuraUntil,
+        goldenAuraUntil: (g.goldenAuraMs ?? 0) > 0 ? Date.now() + (g.goldenAuraMs ?? 0) : 0,
       });
 
       drawParticlesAndTexts(ctx, particlesRef.current, floatingTextsRef.current, c);
@@ -152,7 +144,7 @@ export function useGameLoop({
     }
 
     function gameLoop(now: number) {
-      const dt = now - lastTime;
+      const dt = Math.min(100, Math.max(0, now - lastTime));
       lastTime = now;
       tongueTimerRef.current += 1;
 
@@ -173,22 +165,80 @@ export function useGameLoop({
         const elapsed = (Date.now() - gameRef.current.startTime) / 1000;
         const remain = Math.max(0, currentLevelConfigRef.current.timeLimit - elapsed);
         onSetTimeLeft(remain);
+        if (remain > 0 && remain <= 10) {
+          const sec = Math.ceil(remain);
+          if (sec !== lastTickSecond) {
+            lastTickSecond = sec;
+            try {
+              soundFx.playTick();
+            } catch {}
+          }
+        } else {
+          lastTickSecond = -1;
+        }
         if (remain <= 0) {
           onSetIsTimeUp(true);
           onSetStatus("over");
           shakeRef.current = 14;
           try {
             soundFx.playDie();
+            soundFx.haptic([40, 30, 60]);
           } catch {}
           render(1, now);
           raf = requestAnimationFrame(gameLoop);
           return;
         }
+      } else {
+        lastTickSecond = -1;
       }
 
-      if (gameRef.current.golden && gameRef.current.golden.active) {
-        gameRef.current.golden.timeLeft -= dt;
-        if (gameRef.current.golden.timeLeft <= 0) gameRef.current.golden = null;
+      if (statusRef.current === "playing") {
+        const g = gameRef.current;
+        if (g.golden && g.golden.active) {
+          g.golden.timeLeft -= dt;
+          if (g.golden.timeLeft <= 0) g.golden = null;
+        }
+        if ((g.goldenAuraMs ?? 0) > 0) {
+          g.goldenAuraMs = Math.max(0, (g.goldenAuraMs ?? 0) - dt);
+        }
+        if ((g.comboTimerMs ?? 0) > 0) {
+          g.comboTimerMs = Math.max(0, (g.comboTimerMs ?? 0) - dt);
+          if (g.comboTimerMs === 0) g.comboCount = 0;
+        }
+        if (g.pendingObstacles && g.pendingObstacles.length > 0) {
+          const stillPending = [];
+          for (const p of g.pendingObstacles) {
+            p.remainingMs -= dt;
+            if (p.remainingMs <= 0) {
+              const occupied =
+                g.snake.some((s) => s.x === p.x && s.y === p.y) ||
+                (g.food.x === p.x && g.food.y === p.y) ||
+                (g.golden?.active && g.golden.x === p.x && g.golden.y === p.y);
+              if (occupied) {
+                p.remainingMs = 150;
+                stillPending.push(p);
+              } else {
+                g.obstacles.push({
+                  x: p.x,
+                  y: p.y,
+                  variant: p.variant,
+                  spawnedAt: Date.now(),
+                });
+                const c = cellRef.current;
+                pushJuiceParticles(
+                  particlesRef.current,
+                  (p.x + 0.5) * c,
+                  (p.y + 0.5) * c,
+                  themeRef.current.obstacleAccent || themeRef.current.accent,
+                  12
+                );
+              }
+            } else {
+              stillPending.push(p);
+            }
+          }
+          g.pendingObstacles = stillPending;
+        }
       }
 
       const interval = gameRef.current.currentSpeedMs;

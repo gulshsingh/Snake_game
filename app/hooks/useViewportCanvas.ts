@@ -42,6 +42,7 @@ export function useViewportCanvas({
     height: 640,
     cols: 20,
     rows: 20,
+    dpr: 1,
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showFullscreenHud, setShowFullscreenHud] = useState(false);
@@ -80,10 +81,11 @@ export function useViewportCanvas({
     const rows = Math.max(12, Math.floor(availableH / targetCell));
 
     const c = Math.min(Math.floor(availableW / cols), Math.floor(availableH / rows));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
     cellRef.current = c;
     gridSizeRef.current = { cols, rows };
 
-    setCanvasDim({ width: cols * c, height: rows * c, cols, rows });
+    setCanvasDim({ width: cols * c, height: rows * c, cols, rows, dpr });
 
     const g = gameRef.current;
     if (statusRef.current === "ready" && sessionRef.current) {
@@ -93,6 +95,7 @@ export function useViewportCanvas({
         cols,
         rows,
         difficulty: sessionRef.current.difficulty,
+        difficultyLayer: sessionRef.current.difficultyLayer,
         snake: initialSnake,
         dir: initialDir,
         level: sessionRef.current.level,
@@ -235,7 +238,8 @@ export function useViewportCanvas({
     const t = e.touches[0];
     const dx = t.clientX - touchStartRef.current.x;
     const dy = t.clientY - touchStartRef.current.y;
-    if (Math.hypot(dx, dy) > 16) {
+    const threshold = Math.max(18, cellRef.current * 0.7);
+    if (Math.hypot(dx, dy) > threshold) {
       onTurn(Math.abs(dx) > Math.abs(dy) ? { x: dx > 0 ? 1 : -1, y: 0 } : { x: 0, y: dy > 0 ? 1 : -1 });
       touchStartRef.current = { x: t.clientX, y: t.clientY };
     }

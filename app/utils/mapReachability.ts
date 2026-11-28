@@ -290,6 +290,26 @@ export function findSafeProgressiveObstacle(params: {
       continue;
     }
 
+    // Prevent turning any adjacent open tile into a 1-exit dead-end pocket
+    let createsDeadEnd = false;
+    const adjDirs = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ];
+    for (const [dx, dy] of adjDirs) {
+      const nx = cand.x + dx;
+      const ny = cand.y + dy;
+      if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+      if (testBlocked.has(`${nx},${ny}`)) continue;
+      if (countOpenNeighbors(nx, ny, cols, rows, testBlocked) < 2) {
+        createsDeadEnd = true;
+        break;
+      }
+    }
+    if (createsDeadEnd) continue;
+
     const reachable = getReachableCells(cols, rows, head, testBlocked);
     const totalOpen = cols * rows - testBlocked.size;
     if (

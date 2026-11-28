@@ -2,8 +2,9 @@ import { Dispatch, MutableRefObject, SetStateAction, useCallback, useEffect, use
 import { soundFx } from "../utils/audio";
 import { getLevelConfig } from "../utils/levels";
 import { pushFloatingText } from "../utils/fxRenderer";
-import { SnakeGameState } from "../utils/gameStep";
+import { adjustGameTimersForPause, SnakeGameState } from "../utils/gameStep";
 import {
+  DifficultyLayer,
   DifficultyLevel,
   Direction,
   FloatingText,
@@ -48,6 +49,7 @@ interface UseSnakeControlsParams {
       seed: string;
       mapThemeId: MapThemeId;
       difficulty: DifficultyLevel;
+      difficultyLayer?: DifficultyLayer;
     } | null
   ) => GameSessionConfig;
 }
@@ -221,7 +223,7 @@ export function useSnakeControls({
       const isOpposite = last.x + d.x === 0 && last.y + d.y === 0;
       const isSame = last.x === d.x && last.y === d.y;
 
-      if (!isOpposite && !isSame && g.queue.length < 2) {
+      if (!isOpposite && !isSame && g.queue.length < 3) {
         g.queue.push(d);
         try {
           soundFx.playTurn();
@@ -247,8 +249,8 @@ export function useSnakeControls({
 
   const resumeGame = useCallback(() => {
     if (statusRef.current !== "paused") return;
-    if (pausedAtRef.current !== null && gameRef.current.hasStartedMoving) {
-      gameRef.current.startTime += Date.now() - pausedAtRef.current;
+    if (pausedAtRef.current !== null) {
+      adjustGameTimersForPause(gameRef.current, Date.now() - pausedAtRef.current);
     }
     pausedAtRef.current = null;
     resumeGraceMsRef.current = gameRef.current.hasStartedMoving ? 1200 : 0;
@@ -330,6 +332,14 @@ export function useSnakeControls({
         e.key === "p" ||
         e.key === "P"
       ) {
+        if (
+          (e.key === " " || e.key === "Enter") &&
+          statusRef.current !== "playing" &&
+          e.target instanceof HTMLElement &&
+          e.target.closest("button, a, [role='button']")
+        ) {
+          return;
+        }
         e.preventDefault();
         togglePause();
       } else if (e.key === "m" || e.key === "M") {

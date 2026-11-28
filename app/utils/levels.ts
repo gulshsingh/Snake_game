@@ -58,10 +58,10 @@ export const TIER_CONFIG = {
   normal: {
     label: "NORMAL TIER",
     badge: "🌱 Normal",
-    themeName: "Emerald Forest",
-    themeIcon: "🌿",
-    snakeColor: "Emerald Green",
-    boardDesc: "Lush Green Grass Board",
+    themeName: "Random Map Pool",
+    themeIcon: "🎲",
+    snakeColor: "Lion Warrior",
+    boardDesc: "6 Random Maps • 4×4 Difficulty",
     color: "from-emerald-500 to-green-600",
     border: "border-emerald-500/40",
     bg: "bg-emerald-500/10",
@@ -69,11 +69,11 @@ export const TIER_CONFIG = {
   },
   medium: {
     label: "MEDIUM TIER",
-    badge: "🏜️ Medium",
-    themeName: "Golden Desert",
-    themeIcon: "🏜️",
-    snakeColor: "Golden Sand Cobra",
-    boardDesc: "Golden Sand Dunes Board",
+    badge: "⚡ Medium",
+    themeName: "Random Map Pool",
+    themeIcon: "🎲",
+    snakeColor: "Lion Warrior",
+    boardDesc: "6 Random Maps • 4×4 Difficulty",
     color: "from-amber-500 to-yellow-600",
     border: "border-amber-500/40",
     bg: "bg-amber-500/10",
@@ -82,10 +82,10 @@ export const TIER_CONFIG = {
   hard: {
     label: "HARD TIER",
     badge: "🔥 Hard",
-    themeName: "Volcanic Inferno",
-    themeIcon: "🌋",
-    snakeColor: "Fiery Lava Dragon",
-    boardDesc: "Charred Basalt Lava Board",
+    themeName: "Random Map Pool",
+    themeIcon: "🎲",
+    snakeColor: "Lion Warrior",
+    boardDesc: "6 Random Maps • 4×4 Difficulty",
     color: "from-orange-500 to-red-600",
     border: "border-orange-500/40",
     bg: "bg-orange-500/10",
@@ -94,10 +94,10 @@ export const TIER_CONFIG = {
   mythic: {
     label: "MYTHIC TIER",
     badge: "⚡ Extreme",
-    themeName: "Cyber Void",
-    themeIcon: "⚡",
-    snakeColor: "Neon Cyan Python",
-    boardDesc: "Deep Neon Cyber Slate Board",
+    themeName: "Random Map Pool",
+    themeIcon: "🎲",
+    snakeColor: "Lion Warrior",
+    boardDesc: "6 Random Maps • 4×4 Difficulty",
     color: "from-purple-500 via-pink-500 to-cyan-500",
     border: "border-cyan-500/40",
     bg: "bg-cyan-500/10",
@@ -111,7 +111,7 @@ export const TIER_CONFIG = {
 export function getLevelConfig(lvlNum: number): LevelConfig {
   const level = Math.max(1, Math.floor(Number.isFinite(lvlNum) ? lvlNum : 1));
 
-  // Every 5 levels, the biome changes
+  // Every 5 levels, the biome bracket advances
   const tierBracket = Math.floor((level - 1) / 5);
   const biomeIndex = tierBracket % 4;
   const intraIndex = (level - 1) % 5;
@@ -132,8 +132,10 @@ export function getLevelConfig(lvlNum: number): LevelConfig {
   const speedReduction = Math.min(100, Math.floor(tierBracket * 4 + intraIndex * 2));
   const baseSpeed = Math.max(60, 160 - speedReduction);
 
-  // Time Limit in seconds: scales challenging yet achievable
-  const timeLimit = Math.max(30, Math.round(75 - Math.min(45, tierBracket * 2.5 + intraIndex * 2)));
+  // Time Limit in seconds: scales proportionally with targetApples so all random difficulties stay fair
+  const secondsPerApple = Math.max(2.5, 4.8 - Math.min(2.3, tierBracket * 0.14 + intraIndex * 0.08));
+  const bufferSeconds = Math.max(16, Math.round(46 - Math.min(30, tierBracket * 2.2)));
+  const timeLimit = Math.max(45, Math.min(130, Math.round(targetApples * secondsPerApple + bufferSeconds)));
 
   // Star Rating completion time targets
   const star3Time = Math.max(15, Math.round(timeLimit * 0.45));
