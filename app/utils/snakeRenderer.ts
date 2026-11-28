@@ -1,4 +1,5 @@
-import { Direction, GoldenApple, Point, Status, ThemeConfig } from "./types";
+import { Direction, GoldenApple, Obstacle, Point, Status, ThemeConfig } from "./types";
+import { drawLionWarriorHead } from "./snakeHeadRenderer";
 
 export interface SerpentRenderParams {
   ctx: CanvasRenderingContext2D;
@@ -16,297 +17,296 @@ export interface SerpentRenderParams {
   hasStartedMoving: boolean;
   tongueTimer: number;
   mouthOpen: number;
+  obstacles?: Obstacle[];
+  cols?: number;
+  rows?: number;
+  speedMs?: number;
+  goldenAuraUntil?: number;
 }
 
-/**
- * Renders the hyper-realistic slithering serpent (Shadow, Continuous Tubular Body, Viper Head).
- * Returns the updated mouthOpen interpolation value.
- */
-export function drawSerpent({
-  ctx,
-  snake,
-  prevSnake,
-  dir,
-  food,
-  golden,
-  bulges,
-  c,
-  interp,
-  timeNow,
-  theme,
-  status,
-  hasStartedMoving,
-  tongueTimer,
-  mouthOpen: prevMouthOpen,
-}: SerpentRenderParams): number {
-  const snakeLen = snake.length;
+interface RenderNode {
+  x: number;
+  y: number;
+  radius: number;
+  index: number;
+}
 
-  // Distance from snake head to target food for Gaping Jaws animation
-  const headPosCurrent = snake[0];
-  const targetFood = golden && golden.active ? golden : food;
-  const distToFood = Math.hypot(
-    headPosCurrent.x - targetFood.x,
-    headPosCurrent.y - targetFood.y
-  );
+const COLORS = {
+  outline: "#4b2c86",
+  suitDark: "#4f3b9c",
+  suit: "#7a57bd",
+  armor: "#a97ad3",
+  armorLight: "#e2b8ee",
+  rim: "#f0c4ea",
+  skin: "#fbc06b",
+};
 
-  const targetMouthOpen = distToFood <= 2.2 ? Math.min(1, (2.2 - distToFood) / 1.4) : 0;
-  const mouthOpen = prevMouthOpen + (targetMouthOpen - prevMouthOpen) * 0.2;
+function radial(
+  ctx: CanvasRenderingContext2D, x: number, y: number, r: number,
+  light: string, mid: string, dark: string
+) {
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.05, x, y, r * 1.15);
+  g.addColorStop(0, light);
+  g.addColorStop(0.5, mid);
+  g.addColorStop(1, dark);
+  return g;
+}
 
-  // Pre-calculate interpolated smooth points with natural lateral spine undulation
-  type RenderNode = { x: number; y: number; radius: number; index: number };
-  const nodes: RenderNode[] = [];
+function fillStroke(
+  ctx: CanvasRenderingContext2D, fill: string | CanvasGradient,
+  stroke: string, width: number
+) {
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
 
-  for (let i = 0; i < snakeLen; i++) {
-    const curr = snake[i];
-    const prev = prevSnake[i] || curr;
-
-    let px = prev.x + (curr.x - prev.x) * interp;
-    let py = prev.y + (curr.y - prev.y) * interp;
-
-    // Serpentine lateral spine wave
-    if (status === "playing" && hasStartedMoving && i > 0 && i < snakeLen - 1) {
-      const wavePhase = timeNow * 0.009 + i * 0.65;
-      const waveAmp = c * 0.07 * Math.sin((i / snakeLen) * Math.PI);
-      const segDirX = curr.x - (snake[i + 1]?.x || curr.x);
-      const segDirY = curr.y - (snake[i + 1]?.y || curr.y);
-      const len = Math.hypot(segDirX, segDirY) || 1;
-      const perpX = -segDirY / len;
-      const perpY = segDirX / len;
-
-      px += (perpX * waveAmp * Math.sin(wavePhase)) / c;
-      py += (perpY * waveAmp * Math.sin(wavePhase)) / c;
-    }
-
-    const segX = (px + 0.5) * c;
-    const segY = (py + 0.5) * c;
-
-    const taper = i === 0 ? 0.95 : 0.45 + 0.55 * (1 - i / snakeLen);
-    let radius = c * 0.42 * taper;
-
-    // Digestion bulge swell
-    const activeBulge = bulges.find((b) => Math.abs(b.index - i) < 1.3);
-    if (activeBulge) {
-      const bulgeStrength = 1 - Math.abs(activeBulge.index - i) / 1.3;
-      radius *= 1 + 0.35 * bulgeStrength;
-    }
-
-    nodes.push({ x: segX, y: segY, radius, index: i });
-  }
-
-  // PASS 1: Ambient soft shadow cast under entire snake
+function drawSpeedTrail(
+  ctx: CanvasRenderingContext2D, tail: RenderNode, dir: Direction, c: number, speedMs: number
+) {
+  if (speedMs > 125) return;
+  const intensity = Math.min(1, (130 - speedMs) / 55);
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
+  ctx.strokeStyle = `rgba(216, 180, 254, ${0.22 + 0.25 * intensity})`;
+  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1.2, c * 0.06);
+  for (let s = -1; s <= 1; s++) {
+    const off = s * c * 0.2;
+    const perpX = -dir.y * off;
+    const perpY = dir.x * off;
+    const len = c * (0.45 + 0.4 * intensity) * (s === 0 ? 1.2 : 0.85);
+    ctx.beginPath();
+    ctx.moveTo(tail.x + perpX - dir.x * c * 0.15, tail.y + perpY - dir.y * c * 0.15);
+    ctx.lineTo(tail.x + perpX - dir.x * (c * 0.15 + len), tail.y + perpY - dir.y * (c * 0.15 + len));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTail(
+  ctx: CanvasRenderingContext2D, nodes: RenderNode[], c: number, timeNow: number, fastWag: boolean
+) {
+  if (nodes.length < 2) return;
+  const end = nodes[nodes.length - 1];
+  const before = nodes[nodes.length - 2];
+
+  ctx.save();
+  ctx.translate(end.x, end.y);
+  ctx.rotate(Math.atan2(end.y - before.y, end.x - before.x));
+  const wag = Math.sin(timeNow * (fastWag ? 0.014 : 0.007)) * c * (fastWag ? 0.14 : 0.1);
+
+  ctx.lineCap = "round";
+  const stalk = () => {
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(c * 0.34, -wag, c * 0.58, wag);
+    ctx.stroke();
+  };
+  ctx.strokeStyle = "#a85a3a";
+  ctx.lineWidth = c * 0.17;
+  stalk();
+  ctx.strokeStyle = COLORS.skin;
+  ctx.lineWidth = c * 0.11;
+  stalk();
+
+  ctx.translate(c * 0.58, wag);
+  ctx.beginPath();
+  ctx.moveTo(-c * 0.04, 0);
+  ctx.bezierCurveTo(c * 0.02, -c * 0.26, c * 0.27, -c * 0.2, c * 0.4, 0);
+  ctx.bezierCurveTo(c * 0.27, c * 0.2, c * 0.02, c * 0.26, -c * 0.04, 0);
+  ctx.closePath();
+  fillStroke(ctx, radial(ctx, c * 0.15, 0, c * 0.24, "#efc0f0", "#a76fd0", "#66439f"), COLORS.outline, Math.max(1, c * 0.03));
+  ctx.restore();
+}
+
+function drawArmorBody(
+  ctx: CanvasRenderingContext2D, nodes: RenderNode[], c: number,
+  timeNow: number, isGoldenAura: boolean, fastWag: boolean
+) {
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
   if ("filter" in ctx) {
     try {
       ctx.filter = `blur(${Math.max(2, c * 0.08)}px)`;
     } catch {}
   }
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
+  nodes.forEach((node) => {
     ctx.beginPath();
-    ctx.ellipse(
-      node.x,
-      node.y + c * 0.14,
-      node.radius * 1.05,
-      node.radius * 0.85,
-      0,
-      0,
-      Math.PI * 2
-    );
+    ctx.ellipse(node.x, node.y + c * 0.16, node.radius * 1.05, node.radius * 0.85, 0, 0, Math.PI * 2);
     ctx.fill();
-  }
+  });
   ctx.restore();
 
-  // PASS 2: CONTINUOUS CONNECTED TUBULAR REPTILE BODY
-  for (let i = nodes.length - 1; i >= 1; i--) {
-    const currNode = nodes[i];
-    const nextNode = nodes[i - 1];
+  drawTail(ctx, nodes, c, timeNow, fastWag || isGoldenAura);
 
-    const dx = nextNode.x - currNode.x;
-    const dy = nextNode.y - currNode.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const nx = -dy / dist;
-    const ny = dx / dist;
+  for (let i = nodes.length - 1; i >= 1; i--) {
+    const curr = nodes[i];
+    const next = nodes[i - 1];
+    const dist = Math.hypot(next.x - curr.x, next.y - curr.y);
+    const angle = Math.atan2(next.y - curr.y, next.x - curr.x);
+    const R = curr.radius;
+    const line = Math.max(0.85, c * 0.025);
+    const softOutline = isGoldenAura ? "rgba(217, 119, 6, 0.72)" : "rgba(75, 44, 134, 0.56)";
+    const len = dist > c * 2 ? 0 : dist;
 
     ctx.save();
+    ctx.translate(curr.x, curr.y);
+    ctx.rotate(angle);
+
+    const nr = len ? next.radius * (i === 1 ? 0.9 : 1) : R;
     ctx.beginPath();
-    ctx.moveTo(currNode.x + nx * currNode.radius, currNode.y + ny * currNode.radius);
-    ctx.lineTo(nextNode.x + nx * nextNode.radius, nextNode.y + ny * nextNode.radius);
-    ctx.arc(nextNode.x, nextNode.y, nextNode.radius, Math.atan2(ny, nx), Math.atan2(-ny, -nx));
-    ctx.lineTo(currNode.x - nx * currNode.radius, currNode.y - ny * currNode.radius);
-    ctx.arc(currNode.x, currNode.y, currNode.radius, Math.atan2(-ny, -nx), Math.atan2(ny, nx));
+    ctx.arc(0, 0, R, Math.PI / 2, Math.PI * 1.5);
+    ctx.lineTo(len, -nr);
+    ctx.arc(len, 0, nr, -Math.PI / 2, Math.PI / 2);
     ctx.closePath();
+    const suit = ctx.createLinearGradient(0, -R, 0, R);
+    suit.addColorStop(0, COLORS.suitDark);
+    suit.addColorStop(0.45, COLORS.suit);
+    suit.addColorStop(1, COLORS.suitDark);
+    fillStroke(ctx, suit, softOutline, line);
 
-    const bodyGrad = ctx.createLinearGradient(
-      currNode.x - nx * currNode.radius,
-      currNode.y - ny * currNode.radius,
-      currNode.x + nx * currNode.radius,
-      currNode.y + ny * currNode.radius
-    );
-
-    bodyGrad.addColorStop(0, theme.snakeBodyEnd);
-    bodyGrad.addColorStop(0.35, theme.snakeBodyStart);
-    bodyGrad.addColorStop(0.65, theme.snakeBelly);
-    bodyGrad.addColorStop(1, theme.snakeBodyEnd);
-
-    ctx.fillStyle = bodyGrad;
-    ctx.fill();
-
-    // Dorsal Diamondback / Saddle Pattern
-    if (i % 2 === 0) {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+    for (const offset of len && i > 1 ? [len * 0.5, 0] : [0]) {
+      ctx.save();
+      ctx.translate(offset, 0);
       ctx.beginPath();
-      ctx.ellipse(
-        currNode.x,
-        currNode.y,
-        currNode.radius * 0.45,
-        currNode.radius * 0.7,
-        Math.atan2(dy, dx),
-        0,
-        Math.PI * 2
-      );
+      ctx.moveTo(-R * 0.55, -R * 0.82);
+      ctx.quadraticCurveTo(R * 0.3, -R * 1.06, R * 0.55, -R * 0.55);
+      ctx.quadraticCurveTo(R * 0.98, 0, R * 0.55, R * 0.55);
+      ctx.quadraticCurveTo(R * 0.3, R * 1.06, -R * 0.55, R * 0.82);
+      ctx.quadraticCurveTo(-R * 0.15, 0, -R * 0.55, -R * 0.82);
+      ctx.closePath();
+      fillStroke(ctx, radial(ctx, 0, 0, R, COLORS.armorLight, COLORS.armor, "#7650b4"), softOutline, line);
+
+      ctx.beginPath();
+      ctx.ellipse(R * 0.28, -R * 0.38, R * 0.22, R * 0.11, 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = isGoldenAura ? "rgba(254, 240, 138, 0.8)" : "rgba(255, 232, 250, 0.65)";
       ctx.fill();
 
-      ctx.fillStyle = "rgba(255, 255, 255, 0.16)";
+      ctx.strokeStyle = isGoldenAura ? "#fde047" : COLORS.rim;
+      ctx.lineWidth = Math.max(0.9, R * 0.12);
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.ellipse(
-        currNode.x,
-        currNode.y,
-        currNode.radius * 0.22,
-        currNode.radius * 0.35,
-        Math.atan2(dy, dx),
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
+      ctx.moveTo(-R * 0.44, -R * 0.7);
+      ctx.quadraticCurveTo(-R * 0.03, 0, -R * 0.44, R * 0.7);
+      ctx.stroke();
+      ctx.restore();
     }
 
-    // Wet Cylindrical Spine Highlight
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
-    ctx.lineWidth = Math.max(1.5, currNode.radius * 0.25);
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(currNode.x + nx * (currNode.radius * 0.3), currNode.y + ny * (currNode.radius * 0.3));
-    ctx.lineTo(nextNode.x + nx * (nextNode.radius * 0.3), nextNode.y + ny * (nextNode.radius * 0.3));
-    ctx.stroke();
+    if (len > 0) {
+      ctx.strokeStyle = isGoldenAura ? "rgba(254, 240, 138, 0.36)" : "rgba(255, 232, 255, 0.26)";
+      ctx.lineWidth = Math.max(1.2, R * 0.24);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, -R * 0.24);
+      ctx.lineTo(len, -nr * 0.24);
+      ctx.stroke();
+    }
 
+    if (i === Math.min(2, nodes.length - 1)) {
+      ctx.beginPath();
+      ctx.roundRect(-R * 0.2, -R * 0.98, R * 0.4, R * 1.96, R * 0.18);
+      fillStroke(ctx, isGoldenAura ? "#facc15" : "#b788da", softOutline, line);
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.45, 0, Math.PI * 2);
+      fillStroke(ctx, radial(ctx, 0, 0, R * 0.45, "#f6d3f2", "#b583da", "#7a52b5"), softOutline, line);
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.24, 0, Math.PI * 2);
+      fillStroke(ctx, "#a672cd", isGoldenAura ? "#fef08a" : COLORS.rim, line);
+    }
+
+    if (i === 1) {
+      [-1, 1].forEach((side) => {
+        const y = side * R * 1.02;
+        ctx.beginPath();
+        ctx.ellipse(R * 0.35, y, R * 0.68, R * 0.5, side * 0.25, 0, Math.PI * 2);
+        fillStroke(ctx, radial(ctx, R * 0.35, y, R * 0.65, "#f8d6f4", "#b985dc", "#7550b3"), softOutline, line);
+        ctx.strokeStyle = isGoldenAura ? "#fde047" : COLORS.rim;
+        ctx.lineWidth = Math.max(0.9, R * 0.12);
+        ctx.beginPath();
+        ctx.ellipse(R * 0.35, y, R * 0.52, R * 0.35, side * 0.25, Math.PI * 0.55, Math.PI * 1.45);
+        ctx.stroke();
+      });
+    }
     ctx.restore();
   }
+}
 
-  // PASS 3: VIPER HEAD WITH GAPING MOUTH & FANGS
-  const headNode = nodes[0];
-  const headAngle = Math.atan2(dir.y, dir.x);
+function checkHeadDanger(
+  head: Point, dir: Direction, snake: Point[],
+  obstacles?: Obstacle[], cols?: number, rows?: number
+): boolean {
+  const nx = head.x + dir.x;
+  const ny = head.y + dir.y;
+  if (cols && rows && (nx < 0 || ny < 0 || nx >= cols || ny >= rows)) return true;
+  if (obstacles?.some((o) => o.x === nx && o.y === ny)) return true;
+  return snake.slice(1, -1).some((s) => s.x === nx && s.y === ny);
+}
 
-  ctx.save();
-  ctx.translate(headNode.x, headNode.y);
-  ctx.rotate(headAngle);
+/**
+ * Renders the Purple-Maned Lion Warrior Snake with expressions, aura, and 4-way heads.
+ */
+export function drawSerpent(params: SerpentRenderParams): number {
+  const {
+    ctx, snake, prevSnake, dir, food, golden, bulges, c, interp, timeNow,
+    status, hasStartedMoving, mouthOpen: prevMouthOpen,
+    obstacles, cols, rows, speedMs = 140, goldenAuraUntil = 0,
+  } = params;
+  const snakeLen = snake.length;
+  const headPosCurrent = snake[0];
+  const targetFood = golden && golden.active ? golden : food;
+  const dxFood = targetFood.x - headPosCurrent.x;
+  const dyFood = targetFood.y - headPosCurrent.y;
+  const distToFood = Math.hypot(dxFood, dyFood);
 
-  if (mouthOpen > 0.05) {
-    ctx.fillStyle = "#7f1d1d";
-    ctx.beginPath();
-    ctx.ellipse(c * 0.35, 0, c * 0.3 * mouthOpen, c * 0.35 * mouthOpen, 0, 0, Math.PI * 2);
-    ctx.fill();
+  const targetMouthOpen = distToFood <= 2.2 ? Math.min(1, (2.2 - distToFood) / 1.4) : 0;
+  const mouthOpen = prevMouthOpen + (targetMouthOpen - prevMouthOpen) * 0.2;
 
-    ctx.fillStyle = "#fb7185";
-    ctx.beginPath();
-    ctx.ellipse(c * 0.28, 0, c * 0.15 * mouthOpen, c * 0.2 * mouthOpen, 0, 0, Math.PI * 2);
-    ctx.fill();
+  const isIdle = !hasStartedMoving || status !== "playing";
+  const breatheScale = isIdle && status !== "over" ? 1 + 0.025 * Math.sin(timeNow * 0.0045) : 1;
 
-    const fangSpread = c * 0.28 * mouthOpen;
-    const fangLen = c * 0.22 * mouthOpen;
+  const nodes: RenderNode[] = [];
+  for (let i = 0; i < snakeLen; i++) {
+    const curr = snake[i];
+    const prev = prevSnake[i] || curr;
+    let px = prev.x + (curr.x - prev.x) * interp;
+    let py = prev.y + (curr.y - prev.y) * interp;
 
-    ctx.fillStyle = "#fdfbf7";
-    [-1, 1].forEach((side) => {
-      ctx.beginPath();
-      ctx.moveTo(c * 0.4, side * fangSpread);
-      ctx.lineTo(c * 0.4 + fangLen, side * (fangSpread * 0.7));
-      ctx.lineTo(c * 0.34, side * (fangSpread * 0.85));
-      ctx.closePath();
-      ctx.fill();
-    });
+    if (status === "playing" && hasStartedMoving && i > 0) {
+      const wavePhase = timeNow * 0.01 + i * 0.72;
+      const tNorm = i / Math.max(2, snakeLen - 1);
+      const waveAmp = c * 0.085 * Math.sin(tNorm * Math.PI * 0.9 + 0.18);
+      const refPrev = snake[i - 1] ?? curr;
+      const segDirX = refPrev.x - curr.x;
+      const segDirY = refPrev.y - curr.y;
+      const len = Math.hypot(segDirX, segDirY) || 1;
+      px += ((-segDirY / len) * waveAmp * Math.sin(wavePhase)) / c;
+      py += ((segDirX / len) * waveAmp * Math.sin(wavePhase)) / c;
+    }
+
+    const taper = i === 0 ? 0.94 : 0.42 + 0.54 * (1 - i / snakeLen);
+    let radius = c * 0.44 * taper * breatheScale;
+    const activeBulge = bulges.find((b) => Math.abs(b.index - i) < 1.3);
+    if (activeBulge) {
+      radius *= 1 + 0.35 * (1 - Math.abs(activeBulge.index - i) / 1.3);
+    }
+
+    nodes.push({ x: (px + 0.5) * c, y: (py + 0.5) * c, radius, index: i });
   }
 
-  // Upper Head Cranium
-  const headGrad = ctx.createRadialGradient(c * 0.1, -c * 0.1, c * 0.05, 0, 0, c * 0.6);
-  headGrad.addColorStop(0, theme.snakeHead);
-  headGrad.addColorStop(0.5, theme.snakeBodyStart);
-  headGrad.addColorStop(1, theme.snakeBodyEnd);
-
-  ctx.fillStyle = headGrad;
-  ctx.beginPath();
-  ctx.moveTo(c * 0.55, 0);
-  ctx.quadraticCurveTo(c * 0.42, c * 0.42, -c * 0.28, c * 0.45);
-  ctx.quadraticCurveTo(-c * 0.52, c * 0.22, -c * 0.45, 0);
-  ctx.quadraticCurveTo(-c * 0.52, -c * 0.22, -c * 0.28, -c * 0.45);
-  ctx.quadraticCurveTo(c * 0.42, -c * 0.42, c * 0.55, 0);
-  ctx.closePath();
-  ctx.fill();
-
-  // Supraocular Brow Ridges
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
-  ctx.lineWidth = Math.max(1.8, c * 0.05);
-  [-1, 1].forEach((side) => {
-    ctx.beginPath();
-    ctx.arc(c * 0.12, side * c * 0.28, c * 0.16, -0.6 * side, 1.2 * side, side < 0);
-    ctx.stroke();
-  });
-
-  // Nostrils & Loreal Pits
-  ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-  [-1, 1].forEach((side) => {
-    ctx.beginPath();
-    ctx.arc(c * 0.42, side * c * 0.11, c * 0.035, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(c * 0.28, side * c * 0.22, c * 0.03, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Predatory Eyes
-  [-c * 0.28, c * 0.28].forEach((ey) => {
-    ctx.fillStyle = "#fffbeb";
-    ctx.beginPath();
-    ctx.ellipse(c * 0.1, ey, c * 0.15, c * 0.11, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = theme.snakeEyeIris;
-    ctx.beginPath();
-    ctx.arc(c * 0.12, ey, c * 0.085, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#09090b";
-    ctx.beginPath();
-    ctx.ellipse(c * 0.13, ey, c * 0.026, c * 0.075, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.beginPath();
-    ctx.arc(c * 0.09, ey - c * 0.03, c * 0.028, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Forked Tongue
-  const shouldFlickTongue = tongueTimer % 130 < 45 || distToFood <= 3.5;
-  if (shouldFlickTongue && mouthOpen < 0.6 && status === "playing") {
-    const tongueProgress = (tongueTimer % 45) / 45;
-    const ext = Math.sin(tongueProgress * Math.PI);
-    const tongueLen = c * 0.55 * ext;
-    const quiver = Math.sin(timeNow * 0.05) * (c * 0.06);
-
-    ctx.strokeStyle = "#dc2626";
-    ctx.lineWidth = Math.max(1.8, c * 0.05);
-    ctx.lineCap = "round";
-
-    ctx.beginPath();
-    ctx.moveTo(c * 0.52, 0);
-    ctx.lineTo(c * 0.52 + tongueLen * 0.65, quiver);
-    ctx.moveTo(c * 0.52 + tongueLen * 0.65, quiver);
-    ctx.lineTo(c * 0.52 + tongueLen, quiver - c * 0.14);
-    ctx.moveTo(c * 0.52 + tongueLen * 0.65, quiver);
-    ctx.lineTo(c * 0.52 + tongueLen, quiver + c * 0.14);
-    ctx.stroke();
+  const isGoldenAura = goldenAuraUntil > Date.now();
+  if (status === "playing" && hasStartedMoving && nodes.length >= 1) {
+    drawSpeedTrail(ctx, nodes[nodes.length - 1], dir, c, speedMs);
   }
+  drawArmorBody(ctx, nodes, c, timeNow, isGoldenAura, speedMs <= 125);
 
-  ctx.restore();
+  const inDanger = status === "playing" && hasStartedMoving && checkHeadDanger(headPosCurrent, dir, snake, obstacles, cols, rows);
+  const rawLookX = distToFood > 0.2 && distToFood <= 4 ? dxFood / distToFood : dir.x;
+  const rawLookY = distToFood > 0.2 && distToFood <= 4 ? dyFood / distToFood : dir.y;
+  drawLionWarriorHead(ctx, nodes[0], dir, c, mouthOpen, rawLookX, rawLookY, {
+    timeNow, status, inDanger, breatheScale,
+  });
+
   return mouthOpen;
 }

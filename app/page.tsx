@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { THEMES, getMainBackgroundGradient } from "./utils/themes";
-import { DIFFICULTY_CONFIGS } from "./utils/sessionGenerator";
+import { getLayeredDifficultyConfig } from "./utils/sessionGenerator";
 import { useViewportCanvas } from "./hooks/useViewportCanvas";
 import { useSnakeSession } from "./hooks/useSnakeSession";
 import { useGameLoop } from "./hooks/useGameLoop";
@@ -69,8 +69,11 @@ export default function SnakeGame() {
 
   const activeTheme = THEMES[session.activeThemeId] || THEMES.jungle;
   const activeDifficulty = session.sessionConfig
-    ? DIFFICULTY_CONFIGS[session.sessionConfig.difficulty]
-    : DIFFICULTY_CONFIGS.medium;
+    ? getLayeredDifficultyConfig(
+        session.sessionConfig.difficulty,
+        session.sessionConfig.difficultyLayer
+      )
+    : getLayeredDifficultyConfig("medium", 2);
   const isHudVisible =
     !viewport.isFullscreen || viewport.showFullscreenHud || session.status !== "playing";
   const totalStarsCount = Object.values(session.levelProgress.stars).reduce(
@@ -105,7 +108,7 @@ export default function SnakeGame() {
         >
           <span className="text-[10px] text-emerald-400">▼</span>
           <span className="text-[11px] tracking-wide">
-            {`Lvl ${session.currentLevelNum} • ${activeTheme.icon} ${activeDifficulty.label}`}
+            {`Lvl ${session.currentLevelNum} • ${activeTheme.icon} ${activeDifficulty.label} (${activeDifficulty.dots})`}
           </span>
         </div>
       )}

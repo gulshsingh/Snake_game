@@ -1,12 +1,16 @@
 import {
   DIFFICULTY_CONFIGS,
+  DIFFICULTY_LAYERS,
   DIFFICULTY_LEVELS,
   createRng,
   generateSessionSeed,
+  getDifficultyLayerDots,
   getInitialSnake,
+  getLayeredDifficultyConfig,
   getLevelSpeedConfig,
   hashSeed,
   pickRandomDifficulty,
+  pickRandomDifficultyLayer,
   pickRandomMapTheme,
 } from "./difficulties";
 import {
@@ -17,6 +21,7 @@ import {
   getReachableCells,
 } from "./mapReachability";
 import {
+  DifficultyLayer,
   DifficultyLevel,
   Direction,
   GameSessionConfig,
@@ -28,17 +33,21 @@ import {
 
 export {
   DIFFICULTY_CONFIGS,
+  DIFFICULTY_LAYERS,
   DIFFICULTY_LEVELS,
   createRng,
   ensureFullConnectivity,
   findSafeFoodCell,
   findSafeProgressiveObstacle,
   generateSessionSeed,
+  getDifficultyLayerDots,
   getInitialSnake,
+  getLayeredDifficultyConfig,
   getLevelSpeedConfig,
   getReachableCells,
   hashSeed,
   pickRandomDifficulty,
+  pickRandomDifficultyLayer,
   pickRandomMapTheme,
 };
 
@@ -215,6 +224,7 @@ export function generateMapLayout(params: {
   cols: number;
   rows: number;
   difficulty: DifficultyLevel;
+  difficultyLayer?: DifficultyLayer;
   snake: Point[];
   dir: Direction;
   level?: number;
@@ -223,9 +233,9 @@ export function generateMapLayout(params: {
   obstacles: Obstacle[];
   initialFood: Point;
 } {
-  const { seed, cols, rows, difficulty, snake, dir, level = 1 } = params;
-  const rng = createRng(`${seed}:${cols}x${rows}:${difficulty}:L${level}`);
-  const diffCfg = DIFFICULTY_CONFIGS[difficulty];
+  const { seed, cols, rows, difficulty, difficultyLayer = 2, snake, dir, level = 1 } = params;
+  const rng = createRng(`${seed}:${cols}x${rows}:${difficulty}:S${difficultyLayer}:L${level}`);
+  const diffCfg = getLayeredDifficultyConfig(difficulty, difficultyLayer);
   const patterns = getPatternsForDifficulty(difficulty);
   const pattern = patterns[Math.floor(rng() * patterns.length)];
 
@@ -268,6 +278,7 @@ export function createGameSession(params: {
   seed?: string;
   fixedMapThemeId?: MapThemeId;
   fixedDifficulty?: DifficultyLevel;
+  fixedDifficultyLayer?: DifficultyLayer;
 }): GameSessionConfig {
   const {
     cols,
@@ -278,13 +289,15 @@ export function createGameSession(params: {
     seed = generateSessionSeed(),
     fixedMapThemeId,
     fixedDifficulty,
+    fixedDifficultyLayer,
   } = params;
 
   const sessionRng = createRng(seed);
   const mapThemeId = fixedMapThemeId ?? pickRandomMapTheme(previousMapThemeId, sessionRng);
   const difficulty = fixedDifficulty ?? pickRandomDifficulty(sessionRng, level);
+  const difficultyLayer = fixedDifficultyLayer ?? pickRandomDifficultyLayer(sessionRng, level);
   const { snake, dir } = getInitialSnake(cols, rows, isPortrait);
-  const layout = generateMapLayout({ seed, cols, rows, difficulty, snake, dir, level });
+  const layout = generateMapLayout({ seed, cols, rows, difficulty, difficultyLayer, snake, dir, level });
 
   return {
     sessionId: `sess_${seed}`,
@@ -292,6 +305,7 @@ export function createGameSession(params: {
     level,
     mapThemeId,
     difficulty,
+    difficultyLayer,
     pattern: layout.pattern,
     obstacles: layout.obstacles,
     initialFood: layout.initialFood,

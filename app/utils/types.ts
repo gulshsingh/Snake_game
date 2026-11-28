@@ -6,6 +6,7 @@ export type Status = "ready" | "playing" | "paused" | "over" | "level_clear";
 export type MapThemeId = "jungle" | "desert" | "ice" | "space" | "lava" | "ocean";
 
 export type DifficultyLevel = "easy" | "medium" | "hard" | "expert";
+export type DifficultyLayer = 1 | 2 | 3 | 4;
 
 export type LayoutPattern =
   | "open"
@@ -41,6 +42,7 @@ export interface DifficultyConfig {
   scorePerFood: number;
   bonusScore: number;
   badgeClass: string;
+  dots?: string;
 }
 
 export interface GameSessionConfig {
@@ -49,6 +51,7 @@ export interface GameSessionConfig {
   level: number;
   mapThemeId: MapThemeId;
   difficulty: DifficultyLevel;
+  difficultyLayer: DifficultyLayer;
   pattern: LayoutPattern;
   obstacles: Obstacle[];
   initialFood: Point;

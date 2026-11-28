@@ -3,6 +3,7 @@ import { soundFx } from "../utils/audio";
 import { MAP_THEME_IDS, THEMES } from "../utils/themes";
 import { getLevelConfig } from "../utils/levels";
 import {
+  DIFFICULTY_LAYERS,
   DIFFICULTY_LEVELS,
   createGameSession,
   getInitialSnake,
@@ -11,6 +12,7 @@ import {
 import { getInitialGameState } from "../utils/gameStep";
 import { useSnakeControls } from "./useSnakeControls";
 import {
+  DifficultyLayer,
   DifficultyLevel,
   Direction,
   FloatingText,
@@ -105,7 +107,11 @@ export function useSnakeSession({
   const applySessionToGame = useCallback(
     (session: GameSessionConfig, cols: number, rows: number, isPortrait: boolean) => {
       const { snake: initialSnake, dir: initialDir } = getInitialSnake(cols, rows, isPortrait);
-      const speedCfg = getLevelSpeedConfig(session.difficulty, session.level);
+      const speedCfg = getLevelSpeedConfig(
+        session.difficulty,
+        session.level,
+        session.difficultyLayer
+      );
 
       sessionRef.current = session;
       setSessionConfig(session);
@@ -131,6 +137,7 @@ export function useSnakeSession({
         startTime: Date.now(),
         bulges: [],
         hasStartedMoving: false,
+        goldenAuraUntil: 0,
       };
       particles.current = [];
       floatingTexts.current = [];
@@ -151,6 +158,7 @@ export function useSnakeSession({
         seed: string;
         mapThemeId: MapThemeId;
         difficulty: DifficultyLevel;
+        difficultyLayer?: DifficultyLayer;
       } | null
     ) => {
       const grid = gridSizeRef.current;
@@ -169,6 +177,7 @@ export function useSnakeSession({
         seed: lockedOverride?.seed,
         fixedMapThemeId: lockedOverride?.mapThemeId,
         fixedDifficulty: lockedOverride?.difficulty,
+        fixedDifficultyLayer: lockedOverride?.difficultyLayer,
       });
 
       lastMapThemeRef.current = newSession.mapThemeId;
@@ -181,6 +190,7 @@ export function useSnakeSession({
             seed: newSession.seed,
             mapThemeId: newSession.mapThemeId,
             difficulty: newSession.difficulty,
+            difficultyLayer: newSession.difficultyLayer,
           })
         );
       } catch {}
@@ -198,6 +208,7 @@ export function useSnakeSession({
         seed: string;
         mapThemeId: MapThemeId;
         difficulty: DifficultyLevel;
+        difficultyLayer?: DifficultyLayer;
       } | null = null;
 
       try {
@@ -230,6 +241,7 @@ export function useSnakeSession({
             seed?: string;
             mapThemeId?: MapThemeId;
             difficulty?: DifficultyLevel;
+            difficultyLayer?: DifficultyLayer;
           };
           if (
             parsed?.level === initialLvl &&
@@ -239,10 +251,15 @@ export function useSnakeSession({
             parsed.difficulty &&
             DIFFICULTY_LEVELS.includes(parsed.difficulty)
           ) {
+            const validLayer =
+              parsed.difficultyLayer && DIFFICULTY_LAYERS.includes(parsed.difficultyLayer)
+                ? parsed.difficultyLayer
+                : 2;
             lockedSession = {
               seed: parsed.seed,
               mapThemeId: parsed.mapThemeId,
               difficulty: parsed.difficulty,
+              difficultyLayer: validLayer,
             };
           }
         }

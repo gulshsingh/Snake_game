@@ -58,7 +58,7 @@ export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({
             <span
               className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${sessionDifficulty.badgeClass}`}
             >
-              {sessionDifficulty.badge}
+              {`${sessionDifficulty.badge} (${sessionDifficulty.dots || "●●○○"})`}
             </span>
           ) : (
             <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white/10 text-white/70 border border-white/15">

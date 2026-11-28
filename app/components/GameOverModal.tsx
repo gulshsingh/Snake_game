@@ -55,7 +55,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             ? `You needed ${Math.max(0, targetApples - applesEaten)} more apples to complete Level ${level.level}.`
             : `Crashed in Level ${level.level}: ${level.title}!`}
           {session && sessionTheme && sessionDifficulty
-            ? ` (${sessionTheme.icon} ${sessionTheme.name} • ${sessionDifficulty.label})`
+            ? ` (${sessionTheme.icon} ${sessionTheme.name} • ${sessionDifficulty.label} ${sessionDifficulty.dots || "●●○○"})`
             : ""}
         </p>
 
